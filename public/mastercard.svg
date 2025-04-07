@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000px" height="618px" viewBox="0 0 1000 618" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="mastercard" fill-rule="nonzero">
+            <rect id="Rectangle" fill="#FFFFFF" x="0" y="0" width="1000" height="618"></rect>
+            <g id="Group" transform="translate(183.000000, 155.000000)">
+                <rect id="Rectangle" fill="#FF5F00" x="237" y="48" width="160" height="260"></rect>
+                <path d="M257,178 C257,121 283,70 325,35 C290,13 249,0 205,0 C92,0 0,80 0,178 C0,276 92,356 205,356 C249,356 290,343 325,321 C283,286 257,235 257,178 Z" id="Path" fill="#EB001B"></path>
+                <path d="M634,178 C634,276 542,356 429,356 C385,356 344,343 309,321 C351,286 377,235 377,178 C377,121 351,70 309,35 C344,13 385,0 429,0 C542,0 634,80 634,178 Z" id="Path" fill="#F79E1B"></path>
+            </g>
+        </g>
+    </g>
+</svg>
