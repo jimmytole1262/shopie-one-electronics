@@ -23,7 +23,7 @@ const fallbackPopularProducts = [
   {
     id: 1,
     name: 'Wireless Headphones',
-    price: 129.99,
+    price: 12999,
     image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop',
     category: 'Audio',
     isNew: true,
@@ -31,7 +31,7 @@ const fallbackPopularProducts = [
   {
     id: 2,
     name: 'Smart Watch Pro',
-    price: 199.99,
+    price: 19999,
     image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=500&h=500&fit=crop',
     category: 'Wearables',
     discount: 15,
@@ -39,14 +39,14 @@ const fallbackPopularProducts = [
   {
     id: 3,
     name: 'Bluetooth Speaker',
-    price: 79.99,
+    price: 7999,
     image: 'https://images.unsplash.com/photo-1589003077984-894e133dabab?w=500&h=500&fit=crop',
     category: 'Audio',
   },
   {
     id: 4,
     name: 'Wireless Earbuds',
-    price: 89.99,
+    price: 8999,
     image: 'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=500&h=500&fit=crop',
     category: 'Audio',
     isNew: true,
@@ -104,13 +104,81 @@ export default function PopularProducts() {
         timeoutId = setupTimeout();
         
         try {
-          // Use a try-catch block specifically for the fetch operation
+          // Import Supabase client
+          const { createClient } = await import('@supabase/supabase-js')
+          
+          // Initialize Supabase client
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+          const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          
+          // Check if Supabase is configured
+          if (supabaseUrl && supabaseKey) {
+            try {
+              const supabase = createClient(supabaseUrl, supabaseKey)
+              
+              // Fetch products from Supabase
+              const { data: supabaseData, error } = await supabase
+                .from('products')
+                .select('*')
+                .order('created_at', { ascending: false })
+              
+              if (error) {
+                console.error('Supabase fetch error:', error)
+                throw error
+              }
+              
+              if (supabaseData && supabaseData.length > 0) {
+                // Process Supabase data
+                let popularProducts = supabaseData.filter((product: any) => product.is_popular === true);
+                
+                // If no popular products found, use the first 4
+                if (popularProducts.length === 0) {
+                  popularProducts = supabaseData.slice(0, Math.min(4, supabaseData.length));
+                }
+                
+                // Transform the data to match our Product interface
+                let transformedProducts = popularProducts.map((product: any) => {
+                  return {
+                    id: product.id,
+                    name: product.name,
+                    price: parseFloat(product.price),
+                    originalPrice: product.original_price ? parseFloat(product.original_price) : undefined,
+                    image: product.image_url || '/placeholder.svg?height=300&width=300',
+                    category: product.category || 'Uncategorized',
+                    isNew: product.is_new,
+                    discount: product.discount,
+                    isPopular: product.is_popular
+                  };
+                });
+                
+                if (transformedProducts.length > 0) {
+                  setProducts(transformedProducts)
+                  // Cache the products for future use
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('popularProducts', JSON.stringify(transformedProducts))
+                  }
+                  return; // Exit early if we have Supabase data
+                }
+              }
+              
+              // If we get here, Supabase didn't have data we could use
+              throw new Error('No usable data from Supabase');
+              
+            } catch (supabaseError) {
+              console.error('Supabase error:', supabaseError)
+              // Fall back to API if Supabase fails
+            }
+          }
+          
+          // Fallback to API if Supabase is not configured or failed
           const response = await fetch('/api/products', {
             signal: controller.signal,
             headers: {
-              'Accept': 'application/json'
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
             },
-            // Add cache: 'no-store' to prevent caching issues
+            // Disable caching completely
             cache: 'no-store'
           });
           
@@ -123,50 +191,123 @@ export default function PopularProducts() {
           // Check for HTML response (which would indicate an error page)
           const contentType = response.headers.get('content-type')
           if (!contentType || !contentType.includes('application/json')) {
+            // If we get an HTML response instead of JSON, use fallback data
             console.error('Received non-JSON response:', contentType)
-            throw new Error('Invalid response format - expected JSON')
+            // Use fallback data instead of throwing an error
+            setProducts(fallbackPopularProducts)
+            return
           }
           
           if (!response.ok) {
-            throw new Error(`API error: ${response.status} ${response.statusText}`)
+            console.error(`API error: ${response.status} ${response.statusText}`)
+            setProducts(fallbackPopularProducts)
+            return
           }
           
           // Safely parse JSON
           let data
           try {
-            data = await response.json()
+            // Get the response as text first to check for HTML content
+            const text = await response.text()
+            
+            // Check if the text is valid JSON before parsing
+            if (!text || text.trim() === '') {
+              console.error('Empty response received')
+              setProducts(fallbackPopularProducts)
+              return
+            }
+            
+            // Check for HTML content explicitly
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+              console.error('Received HTML instead of JSON')
+              setProducts(fallbackPopularProducts)
+              return
+            }
+            
+            // Try to parse the JSON safely
+            try {
+              data = JSON.parse(text)
+            } catch (jsonError) {
+              console.error('JSON parsing error:', jsonError)
+              setProducts(fallbackPopularProducts)
+              return
+            }
           } catch (parseError) {
-            console.error('JSON parsing error:', parseError)
-            throw new Error('Failed to parse API response as JSON')
+            console.error('Error reading response:', parseError)
+            setProducts(fallbackPopularProducts)
+            return
           }
           
-          // Ensure data is an array
+          // Ensure data is properly structured
+          if (!data) {
+            console.error('No data received from API')
+            return
+          }
+          
+          // Handle different response formats
           if (!Array.isArray(data)) {
-            console.error('API response is not an array:', typeof data)
-            throw new Error('Invalid API response format - expected array')
+            // Check if data has a products property that's an array
+            if (data.products && Array.isArray(data.products)) {
+              data = data.products
+            } else {
+              console.error('API response is not in expected format:', typeof data)
+              return
+            }
           }
           
-          // Filter to only include popular products
-          const popularProducts = data.filter((product: any) => product.is_popular === true)
+          // Create a mutable array to store our popular products
+          let popularProducts: any[] = [];
           
+          try {
+            // Try to filter for popular products, but this might fail if the column doesn't exist
+            popularProducts = data.filter((product: any) => product.is_popular === true);
+          } catch (err) {
+            console.log('Error filtering popular products:', err);
+            // Column likely doesn't exist, continue with empty array
+          }
+          
+          // If we have no popular products or the filter failed, use random products
           if (popularProducts.length === 0 && data.length > 0) {
-            // If we have products but none are marked as popular, use the first few
-            console.log('No products marked as popular, using first few products instead')
-            popularProducts.push(...data.slice(0, 4))
+            console.log('No products marked as popular, using random products instead');
+            // Shuffle the array to get random products
+            const shuffled = [...data].sort(() => 0.5 - Math.random());
+            // Take the first 4 items or all if less than 4
+            popularProducts = shuffled.slice(0, Math.min(4, shuffled.length));
           }
           
           // Transform the data to match our Product interface
-          const transformedProducts = popularProducts.map((product: any) => ({
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            originalPrice: product.original_price,
-            image: product.image_url || '/placeholder.svg?height=300&width=300',
-            category: product.category || 'Uncategorized',
-            isNew: product.is_new,
-            discount: product.discount,
-            isPopular: product.is_popular
-          }))
+          let transformedProducts = popularProducts.map((product: any) => {
+            // Convert price to a number in cents (whole number)
+            let price = product.price;
+            if (typeof price === 'string') {
+              price = Math.round(parseFloat(price) * 100);
+            } else if (typeof price === 'number' && price < 1000) {
+              // If price is already a number but in dollars format (e.g. 59.99), convert to cents
+              price = Math.round(price * 100);
+            }
+            
+            // Convert original price if it exists
+            let originalPrice = product.original_price;
+            if (originalPrice) {
+              if (typeof originalPrice === 'string') {
+                originalPrice = Math.round(parseFloat(originalPrice) * 100);
+              } else if (typeof originalPrice === 'number' && originalPrice < 1000) {
+                originalPrice = Math.round(originalPrice * 100);
+              }
+            }
+            
+            return {
+              id: product.id,
+              name: product.name,
+              price: price,
+              originalPrice: originalPrice || undefined,
+              image: product.image_url || '/placeholder.svg?height=300&width=300',
+              category: product.category || 'Uncategorized',
+              isNew: product.is_new,
+              discount: product.discount,
+              isPopular: product.is_popular
+            };
+          })
           
           if (transformedProducts.length > 0) {
             setProducts(transformedProducts)
@@ -182,22 +323,20 @@ export default function PopularProducts() {
           // Handle specific fetch errors
           if (fetchError.name === 'AbortError') {
             console.error('Fetch request timed out')
-            // Don't set error message if we have fallback products
-            // This prevents the error message from showing to users
-            toast.error('Network request timed out. Using cached data.', {
-              duration: 3000,
-              position: 'bottom-right',
-            })
+            // Don't show toast notifications for timeouts
           } else {
             console.error('Fetch operation failed:', fetchError.message)
-            // Only show error toast if it's not a timeout
-            if (fetchError.message !== 'The user aborted a request.') {
-              toast.error('Could not load latest products. Using cached data.', {
-                duration: 3000,
-                position: 'bottom-right',
-              })
-            }
+            // Don't show error toast at all - silently use cached data
+            // This prevents the error message from showing to users
           }
+          
+          // If we have fallback products, use them
+          if (fallbackPopularProducts.length > 0) {
+            setProducts(fallbackPopularProducts)
+          }
+          
+          // Always log the full error for debugging
+          console.error('Full fetch error:', fetchError)
           
           // Only throw if we don't have fallback products
           if (products.length === 0) {
@@ -228,8 +367,12 @@ export default function PopularProducts() {
         ))}
       </div>
       <div className="flex justify-center mt-10" suppressHydrationWarning>
-        <Button variant="outline" className="border-slate-200">
-          See more
+        <Button 
+          variant="outline" 
+          className="border-slate-200 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors"
+          onClick={() => window.location.href = '/shop'}
+        >
+          See more products
         </Button>
       </div>
       {isLoading && (

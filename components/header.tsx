@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Search, Package, Heart } from "lucide-react"
+import { Search, ShoppingCart, Heart, Clock } from "lucide-react"
 import SimpleCartButton from "./simple-cart-button"
 import { AuthButtons } from "./auth-buttons"
 import { useUser } from "@clerk/nextjs"
@@ -24,7 +24,7 @@ export default function Header({ children }: HeaderProps) {
   }, []);
 
   return (
-    <header className="border-b">
+    <header className="border-b main-site-header">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center">
           <Link href="/" className="flex items-center">
@@ -56,7 +56,7 @@ export default function Header({ children }: HeaderProps) {
           {/* Only show Seller Dashboard to admin */}
           {isAdmin && (
             <Link
-              href="/seller-dashboard"
+              href="/dashboard"
               className="text-sm font-medium text-orange-500 font-semibold transition-colors hover:text-orange-600"
             >
               Seller Dashboard
@@ -86,9 +86,9 @@ export default function Header({ children }: HeaderProps) {
             <motion.div 
               whileHover={{ scale: 1.1 }} 
               whileTap={{ scale: 0.9 }}
-              className="relative inline-flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-100 transition-colors duration-300"
+              className="relative inline-flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-100 transition-colors duration-300 group"
             >
-              <Package className="h-5 w-5 text-gray-700 hover:text-orange-500 transition-colors duration-300" />
+              <Clock className="h-5 w-5 text-gray-700 hover:text-orange-500 transition-colors duration-300" />
               <span className="sr-only">Track Order</span>
               <span className="absolute -bottom-6 text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">Track</span>
             </motion.div>

@@ -18,26 +18,24 @@ export interface OrderDetails {
 }
 
 // Store order details and simulate email sending
-export const sendOrderConfirmationEmail = async (orderDetails: OrderDetails): Promise<boolean> => {
-  console.log(`Sending order confirmation email to ${orderDetails.customerEmail}`);
-  
+export const sendOrderConfirmationEmail = async (orderDetails: OrderDetails): Promise<Response> => {
   try {
-    // Store the order details in localStorage for tracking purposes
-    const orders = JSON.parse(localStorage.getItem('shopie-one-orders') || '[]');
-    orders.push(orderDetails);
-    localStorage.setItem('shopie-one-orders', JSON.stringify(orders));
-    
-    // For development, we'll simulate successful email sending
-    // This avoids issues with email server configuration
-    console.log(`Email sent successfully to ${orderDetails.customerEmail}`);
-    console.log('Order details:', orderDetails);
-    
-    // In a production environment, you would call an API to send a real email
-    // For now, we'll just return success without making the API call
-    return true;
+    const response = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(orderDetails),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    return response
   } catch (error) {
-    console.error('Error in email service:', error);
-    return false;
+    console.error('Error sending email:', error)
+    throw error
   }
 };
 

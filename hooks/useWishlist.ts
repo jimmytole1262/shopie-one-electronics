@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, createContext, useContext } from "react";
-import { toast } from "sonner";
+// Remove toast import to prevent double notifications
 
 // Define types for wishlist items
 export interface WishlistItem {
@@ -98,11 +98,11 @@ export function WishlistProvider({ children }: WishlistProviderProps): React.Rea
       
       if (existingItemIndex > -1) {
         // Item already exists in wishlist, remove it (toggle behavior)
-        toast.info(`${wishlistItem.name} removed from wishlist`);
+        // Removed toast notification to prevent duplicates
         return prevItems.filter(item => item.id !== wishlistItem.id);
       } else {
         // Item doesn't exist, add it
-        toast.success(`${wishlistItem.name} added to wishlist`);
+        // Removed toast notification to prevent duplicates
         return [...prevItems, wishlistItem];
       }
     });
@@ -111,16 +111,14 @@ export function WishlistProvider({ children }: WishlistProviderProps): React.Rea
   // Remove item from wishlist
   const removeItem = (id: number) => {
     const itemToRemove = items.find(item => item.id === id);
-    if (itemToRemove) {
-      toast.info(`${itemToRemove.name} removed from wishlist`);
-    }
+    // Removed toast notification to prevent duplicates
     setItems(prevItems => prevItems.filter(item => item.id !== id));
   };
   
   // Clear wishlist
   const clearWishlist = () => {
     setItems([]);
-    toast.info("Wishlist has been cleared");
+    // Removed toast notification to prevent duplicates
   };
   
   // Check if item is in wishlist

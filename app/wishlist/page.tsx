@@ -3,7 +3,7 @@
 import { useWishlist } from "@/hooks/useWishlist"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Heart, ShoppingCart, Trash2 } from "lucide-react"
+import { Heart, ShoppingCart, Trash } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { useCart } from "@/hooks/useCart"
@@ -79,7 +79,7 @@ export default function WishlistPage() {
           className="text-red-500 border-red-500 hover:bg-red-50"
           onClick={clearWishlist}
         >
-          <Trash2 className="h-4 w-4 mr-2" />
+          <Trash className="h-4 w-4 mr-2" />
           Clear Wishlist
         </Button>
       </div>

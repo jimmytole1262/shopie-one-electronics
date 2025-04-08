@@ -1,8 +1,19 @@
 "use client"
 
 import { Toaster as SonnerToaster } from "sonner"
+import { useEffect, useState } from "react"
 
 export function Toaster() {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  if (!isMounted) {
+    return null
+  }
+
   return (
     <SonnerToaster 
       position="top-right"
@@ -16,6 +27,8 @@ export function Toaster() {
         className: "shadow-lg",
         duration: 3000,
       }}
+      closeButton
+      richColors
     />
   )
 }

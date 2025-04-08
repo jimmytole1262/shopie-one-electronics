@@ -12,13 +12,13 @@ import { toast } from "sonner"
 import { useUser, SignInButton } from "@clerk/nextjs"
 import { useInventory, ProductInventory } from "@/hooks/useInventoryFixed"
 
-// This would normally come from a database or API
-const product = {
+// Fallback product in case API fails
+const fallbackProduct = {
   id: 1,
   name: "Premium Wireless Headphones",
-  price: 249.99,
+  price: 24999, // Price in cents
   discount: 20,
-  originalPrice: 299.99,
+  originalPrice: 29999, // Price in cents
   description:
     "Experience crystal-clear sound with our premium wireless headphones. Featuring active noise cancellation, 30-hour battery life, and ultra-comfortable ear cushions for extended listening sessions.",
   features: [
@@ -50,11 +50,12 @@ const product = {
   reviewCount: 124,
 }
 
-const relatedProducts = [
+// Fallback related products
+const fallbackRelatedProducts = [
   {
     id: 2,
     name: "Wireless Earbuds Pro",
-    price: 149.99,
+    price: 14999, // Price in cents
     image: "https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=300&h=300&fit=crop",
     category: "Audio",
     isNew: true,
@@ -62,14 +63,14 @@ const relatedProducts = [
   {
     id: 3,
     name: "Bluetooth Speaker",
-    price: 79.99,
+    price: 7999, // Price in cents
     image: "https://images.unsplash.com/photo-1589003077984-894e133dabab?w=300&h=300&fit=crop",
     category: "Audio",
   },
   {
     id: 4,
     name: "Noise Cancelling Headset",
-    price: 199.99,
+    price: 19999, // Price in cents
     image: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=300&h=300&fit=crop",
     category: "Audio",
     discount: 10,
@@ -77,29 +78,181 @@ const relatedProducts = [
 ]
 
 export default function ProductDetailPage() {
-  const [selectedImage, setSelectedImage] = useState(product.images[0])
+  // State for product data
+  const [product, setProduct] = useState(fallbackProduct)
+  const [relatedProducts, setRelatedProducts] = useState(fallbackRelatedProducts)
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedImage, setSelectedImage] = useState(fallbackProduct.images[0])
   const [quantity, setQuantity] = useState(1)
-  const discountedPrice = product.price - product.price * (product.discount / 100)
   const { addItem } = useCart()
   const { isSignedIn, isLoaded } = useUser()
   const [isMounted, setIsMounted] = useState(false)
   const { getStock, updateStock, setInitialInventory } = useInventory()
-  const [currentStock, setCurrentStock] = useState(product.stock)
+  const [currentStock, setCurrentStock] = useState(fallbackProduct.stock)
+  
+  // Calculate discounted price
+  const discountedPrice = product.discount ? 
+    product.price - Math.round(product.price * (product.discount / 100)) : 
+    product.price
 
-  // Prevent hydration errors
+  // Fetch product data and prevent hydration errors
   useEffect(() => {
     setIsMounted(true)
     
-    // Initialize inventory if needed
-    setInitialInventory([
-      { id: product.id, stock: product.stock }
-    ]);
+    // Get product ID from URL
+    const path = window.location.pathname
+    const productId = path.split('/').pop()
     
-    // Get current stock from inventory
-    const stock = getStock(product.id);
-    if (stock > 0) {
-      setCurrentStock(stock);
+    const fetchProductData = async () => {
+      try {
+        setIsLoading(true)
+        
+        // Fetch product details
+        let productData;
+        try {
+          const response = await fetch(`/api/products/${productId}`)
+          if (!response.ok) {
+            console.error('API returned error status:', response.status)
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+          }
+          
+          // Safely parse the JSON response
+          const text = await response.text()
+          try {
+            productData = JSON.parse(text)
+          } catch (parseError) {
+            console.error('Failed to parse JSON:', parseError, 'Response text:', text)
+            // Use fallback data instead of throwing
+            productData = {
+              ...fallbackProduct,
+              id: parseInt(productId || '1')
+            }
+          }
+        } catch (fetchError) {
+          console.error('Fetch error:', fetchError)
+          // Use fallback data instead of throwing
+          productData = {
+            ...fallbackProduct,
+            id: parseInt(productId || '1')
+          }
+        }
+        
+        // Ensure price is in cents (whole number)
+        let price = productData.price
+        if (typeof price === 'string') {
+          price = Math.round(parseFloat(price) * 100)
+        } else if (typeof price === 'number' && price < 1000) {
+          // If price is already a number but in dollars format (e.g. 59.99), convert to cents
+          price = Math.round(price * 100)
+        }
+        
+        // Ensure original price is in cents (whole number) if it exists
+        let originalPrice = productData.original_price
+        if (originalPrice) {
+          if (typeof originalPrice === 'string') {
+            originalPrice = Math.round(parseFloat(originalPrice) * 100)
+          } else if (typeof originalPrice === 'number' && originalPrice < 1000) {
+            originalPrice = Math.round(originalPrice * 100)
+          }
+        }
+        
+        // Transform API data to match our product interface
+        const formattedProduct = {
+          id: productData.id,
+          name: productData.name,
+          price: price,
+          discount: productData.discount || 0,
+          originalPrice: originalPrice || undefined,
+          description: productData.description || fallbackProduct.description,
+          features: productData.features || fallbackProduct.features,
+          specifications: productData.specifications || fallbackProduct.specifications,
+          images: [
+            productData.image_url || fallbackProduct.images[0],
+            ...fallbackProduct.images.slice(1) // Use fallback images for additional images
+          ],
+          category: productData.category || 'Uncategorized',
+          stock: productData.stock || 10,
+          rating: productData.rating || 4.5,
+          reviewCount: productData.review_count || 50
+        }
+        
+        setProduct(formattedProduct)
+        setSelectedImage(formattedProduct.images[0])
+        setCurrentStock(formattedProduct.stock)
+        
+        // Initialize inventory with the product stock
+        setInitialInventory([
+          { id: formattedProduct.id, stock: formattedProduct.stock }
+        ])
+        
+        // Fetch related products (products in the same category)
+        try {
+          const relatedResponse = await fetch(`/api/products?category=${encodeURIComponent(formattedProduct.category)}&limit=3`)
+          
+          if (!relatedResponse.ok) {
+            console.error('Related products API error:', relatedResponse.status, relatedResponse.statusText)
+            // Use fallback related products
+            return
+          }
+          
+          // Safely parse the JSON response
+          const responseText = await relatedResponse.text()
+          let relatedData
+          
+          try {
+            relatedData = JSON.parse(responseText)
+          } catch (parseError) {
+            console.error('Failed to parse related products JSON:', parseError)
+            // Use fallback related products
+            setRelatedProducts(fallbackRelatedProducts)
+            return
+          }
+          
+          if (!Array.isArray(relatedData) || relatedData.length === 0) {
+            console.log('No related products found, using fallbacks')
+            return
+          }
+          
+          // Transform related products data
+          const formattedRelatedProducts = relatedData
+            .filter((item: any) => item.id !== formattedProduct.id) // Exclude current product
+            .slice(0, 3) // Limit to 3 products
+            .map((item: any) => {
+              // Ensure price is in cents
+              let itemPrice = item.price
+              if (typeof itemPrice === 'string') {
+                itemPrice = Math.round(parseFloat(itemPrice) * 100)
+              } else if (typeof itemPrice === 'number' && itemPrice < 1000) {
+                itemPrice = Math.round(itemPrice * 100)
+              }
+              
+              return {
+                id: item.id,
+                name: item.name,
+                price: itemPrice,
+                image: item.image_url || fallbackRelatedProducts[0].image,
+                category: item.category || 'Uncategorized',
+                isNew: item.is_new,
+                discount: item.discount
+              }
+            })
+          
+          if (formattedRelatedProducts.length > 0) {
+            setRelatedProducts(formattedRelatedProducts)
+          }
+        } catch (relatedError) {
+          console.error('Error fetching related products:', relatedError)
+          // Fallback to default related products is already set
+        }
+      } catch (error) {
+        console.error('Error fetching product data:', error)
+        // Use fallback data if fetch fails
+      } finally {
+        setIsLoading(false)
+      }
     }
+    
+    fetchProductData()
   }, [])
 
   const handleAddToCart = () => {
@@ -121,10 +274,19 @@ export default function ProductDetailPage() {
     }
 
     // Add to cart
+    // Ensure price is in cents (whole number)
+    let price = product.price;
+    if (typeof price === 'string') {
+      price = Math.round(parseFloat(price) * 100);
+    } else if (typeof price === 'number' && price < 1000) {
+      // If price is already a number but in dollars format (e.g. 59.99), convert to cents
+      price = Math.round(price * 100);
+    }
+    
     addItem({
       id: product.id,
       name: product.name,
-      price: product.price,
+      price: price,
       image: product.images[0],
       quantity: quantity,
       category: product.category
@@ -134,10 +296,8 @@ export default function ProductDetailPage() {
     updateStock(product.id, quantity)
       .then(success => {
         if (success) {
-          toast.success(`${product.name} added to cart`, {
-            id: `add-to-cart-${product.id}`,
-            duration: 3000,
-          })
+          // Toast notification is already handled in the useCart hook
+          // No need for duplicate notification here
           
           // Update the current stock display
           setCurrentStock(prev => prev - quantity);

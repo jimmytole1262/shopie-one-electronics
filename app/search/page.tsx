@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { motion } from "framer-motion"
-import { Loader2 } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Spinner } from "@/components/ui/spinner"
 import ProductCard from "@/components/product-card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -191,14 +191,14 @@ export default function SearchPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <motion.h1 
+      <motion.div 
         className="text-3xl font-bold mb-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
         Search Products
-      </motion.h1>
+      </motion.div>
 
       <motion.div 
         className="mb-8"
@@ -222,12 +222,12 @@ export default function SearchPage() {
 
       {loading ? (
         <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+          <Spinner size="lg" className="text-orange-500" />
         </div>
       ) : (
         <>
           {query && (
-            <motion.p 
+            <motion.div 
               className="mb-4 text-slate-600"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -236,7 +236,7 @@ export default function SearchPage() {
               {products.length === 0 
                 ? `No products found for "${query}"` 
                 : `Found ${products.length} product${products.length === 1 ? '' : 's'} for "${query}"`}
-            </motion.p>
+            </motion.div>
           )}
 
           <motion.div 

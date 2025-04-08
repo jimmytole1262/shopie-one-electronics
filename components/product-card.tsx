@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { ShoppingCart, Heart, Loader2, Star } from "lucide-react"
+import { ShoppingCart, Heart, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -60,7 +60,18 @@ export default function ProductCard({ product }: ProductCardProps) {
   };
 
   const handleAddToWishlist = () => {
+    // Check if item is already in wishlist before adding
+    const isInWishlist = isItemInWishlist(product.id);
+    
+    // Call the wishlist function (which now doesn't show notifications)
     addToWishlist(product);
+    
+    // Show a single notification based on the action performed
+    if (isInWishlist) {
+      toast.info(`${product.name} removed from wishlist`);
+    } else {
+      toast.success(`${product.name} added to wishlist`);
+    }
   };
 
   // During SSR, return a simpler version to prevent hydration errors

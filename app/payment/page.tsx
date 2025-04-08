@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { useCart } from "@/hooks/useCart"
 import { formatKesPrice } from "@/lib/utils"
-import { ArrowLeft, Check, CreditCard, Smartphone } from "lucide-react"
+import { ChevronLeft, Check } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { sendOrderConfirmationEmail, OrderDetails } from "@/lib/email-service"
+import { getToast } from '@/lib/toast-utils';
 
 export default function PaymentPage() {
   const router = useRouter()
@@ -41,28 +42,78 @@ export default function PaymentPage() {
     cvv: "",
   })
 
-  // Client-side only code
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  // Prevent hydration errors by returning null during SSR
-  if (!isMounted) {
-    return null
-  }
-
-  // Calculate order summary
-  const subtotal = totalPrice()
-  const shipping = items.length > 0 ? 1299 : 0
-  const tax = subtotal * 0.08
-  const total = subtotal + shipping + tax
-
   // Generate random order reference
   const generateOrderReference = () => {
     const prefix = "SO-"
     const randomNum = Math.floor(100000 + Math.random() * 900000)
     const timestamp = new Date().getTime().toString().slice(-4)
     return `${prefix}${randomNum}-${timestamp}`
+  }
+
+  // Client-side only code
+  useEffect(() => {
+    setIsMounted(true)
+    
+    // Generate order reference when component mounts
+    const reference = generateOrderReference()
+    setOrderReference(reference)
+    
+    // Redirect to cart if no items
+    if (items.length === 0) {
+      router.push('/cart')
+    }
+  }, [router, items.length])
+
+  // Calculate order summary - moved inside useEffect to ensure client-side rendering
+  const [orderSummary, setOrderSummary] = useState({
+    subtotal: 0,
+    shipping: 0,
+    tax: 0,
+    total: 0
+  })
+
+  // Update order summary whenever items change or component mounts
+  useEffect(() => {
+    if (isMounted && items.length > 0) {
+      const calculatedSubtotal = totalPrice()
+      const calculatedShipping = 1299 // Fixed shipping cost
+      const calculatedTax = calculatedSubtotal * 0.08
+      const calculatedTotal = calculatedSubtotal + calculatedShipping + calculatedTax
+      
+      console.log('Calculated values:', {
+        subtotal: calculatedSubtotal,
+        shipping: calculatedShipping,
+        tax: calculatedTax,
+        total: calculatedTotal
+      })
+      
+      setOrderSummary({
+        subtotal: calculatedSubtotal,
+        shipping: calculatedShipping,
+        tax: calculatedTax,
+        total: calculatedTotal
+      })
+    }
+  }, [isMounted, items, totalPrice])
+
+  // Prevent hydration errors by returning null during SSR
+  if (!isMounted) {
+    return null
+  }
+  
+  // Redirect to cart if no items
+  if (items.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-4">Your cart is empty</h2>
+          <p className="text-gray-600 mb-6">Add some items to your cart before proceeding to checkout</p>
+          <Link href="/" className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md">
+            Continue Shopping
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   const validateForm = () => {
@@ -199,39 +250,40 @@ export default function PaymentPage() {
     
     setIsSubmitting(true)
     
-    // Generate order reference
-    const reference = generateOrderReference()
-    
-    // Create order details
-    const orderDate = new Date()
-    const estimatedDeliveryDate = new Date()
-    estimatedDeliveryDate.setDate(orderDate.getDate() + 5) // Delivery in 5 days
-    
-    const orderDetails: OrderDetails = {
-      orderReference: reference,
-      customerName: formData.fullName,
-      customerEmail: formData.email,
-      items: items,
-      subtotal: subtotal,
-      shipping: shipping,
-      tax: tax,
-      total: total,
-      orderDate: orderDate,
-      estimatedDeliveryDate: estimatedDeliveryDate,
-      status: 'received',
-      shippingAddress: "" // In a real app, we would collect this
-    }
-    
     try {
-      // Send order confirmation email
-      await sendOrderConfirmationEmail(orderDetails)
-      
-      // Update UI
-      setOrderReference(reference)
-      setIsSuccess(true)
-      clearCart() // Clear the cart after successful payment
+      const reference = orderReference || generateOrderReference()
+      if (!orderReference) {
+        setOrderReference(reference)
+      }
+
+      const response = await sendOrderConfirmationEmail({
+        orderReference: reference,
+        customerName: formData.fullName,
+        customerEmail: formData.email,
+        items: items,
+        subtotal: orderSummary.subtotal,
+        shipping: orderSummary.shipping,
+        tax: orderSummary.tax,
+        total: orderSummary.total,
+        orderDate: new Date(),
+        estimatedDeliveryDate: new Date(),
+        status: 'received',
+        shippingAddress: "" // In a real app, we would collect this
+      })
+
+      if (response.ok) {
+        setOrderReference(reference)
+        setIsSuccess(true)
+        clearCart()
+        const toast = await getToast();
+        toast.success('Payment successful!');
+      } else {
+        throw new Error('Payment processing failed')
+      }
     } catch (error) {
-      console.error("Failed to send order confirmation email:", error)
+      console.error('Error:', error)
+      const toast = await getToast();
+      toast.error(error instanceof Error ? error.message : 'Payment failed');
     } finally {
       setIsSubmitting(false)
     }
@@ -260,23 +312,23 @@ export default function PaymentPage() {
             <Check className="h-10 w-10 text-green-600" />
           </motion.div>
           
-          <motion.h1 
+          <motion.div 
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.6 }}
             className="text-2xl font-bold mb-4"
           >
             Payment Successful!
-          </motion.h1>
+          </motion.div>
           
-          <motion.p 
+          <motion.div 
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.7 }}
             className="text-gray-600 mb-6"
           >
             Thank you for your purchase. A confirmation email has been sent to {formData.email}.
-          </motion.p>
+          </motion.div>
           
           <motion.div 
             initial={{ y: 20, opacity: 0 }}
@@ -324,7 +376,7 @@ export default function PaymentPage() {
       className="max-w-6xl mx-auto py-8 px-4"
     >
       <Link href="/shopping-cart" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6">
-        <ArrowLeft className="h-4 w-4 mr-2" />
+        <ChevronLeft className="h-4 w-4 mr-2" />
         Return to Cart
       </Link>
       
@@ -419,7 +471,9 @@ export default function PaymentPage() {
                       }`}
                       onClick={() => setPaymentMethod("card")}
                     >
-                      <CreditCard className="h-5 w-5 mr-2" />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
                       Credit/Debit Card
                     </motion.button>
                     
@@ -434,14 +488,16 @@ export default function PaymentPage() {
                       }`}
                       onClick={() => setPaymentMethod("mpesa")}
                     >
-                      <Smartphone className="h-5 w-5 mr-2" />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
                       M-Pesa
                     </motion.button>
                   </div>
                 </div>
                 
                 {/* Payment Method Specific Fields */}
-                <AnimatePresence mode="wait">
+                <AnimatePresence>
                   {paymentMethod === "card" ? (
                     <motion.div
                       key="card-fields"
@@ -556,7 +612,7 @@ export default function PaymentPage() {
                 >
                   {isSubmitting ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -583,15 +639,15 @@ export default function PaymentPage() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal</span>
-                <span>{formatKesPrice(subtotal)}</span>
+                <span>{formatKesPrice(orderSummary.subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
-                <span>{formatKesPrice(shipping)}</span>
+                <span>{formatKesPrice(orderSummary.shipping)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Tax (8%)</span>
-                <span>{formatKesPrice(tax)}</span>
+                <span>{formatKesPrice(orderSummary.tax)}</span>
               </div>
               <motion.div 
                 initial={{ opacity: 0, height: 0 }}
@@ -601,7 +657,7 @@ export default function PaymentPage() {
               >
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span className="text-lg">{formatKesPrice(total)}</span>
+                  <span className="text-lg">{formatKesPrice(orderSummary.total)}</span>
                 </div>
               </motion.div>
             </div>

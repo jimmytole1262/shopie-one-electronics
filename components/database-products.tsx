@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import ProductCard from "@/components/product-card"
-import { Loader2, RefreshCw } from "lucide-react"
+import { Spinner } from "@/components/ui/spinner"
+import { RefreshCw } from "@/components/ui/icons"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 
@@ -115,7 +116,7 @@ export default function DatabaseProducts() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-20">
-        <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
+        <Spinner size="lg" className="text-orange-500" />
       </div>
     )
   }

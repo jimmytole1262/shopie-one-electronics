@@ -12,6 +12,7 @@ import "./globals.css"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
 import { Providers } from "./providers"
+import ErrorSuppressor from "@/components/error-suppressor"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -76,6 +77,7 @@ export default function RootLayout({
             <CartProvider>
               <InventoryProvider>
                 <ToasterProvider />
+                <ErrorSuppressor />
                 <div className="flex min-h-screen flex-col" suppressHydrationWarning={true}>
                   <Header>
                     {isMounted && isAdmin && (

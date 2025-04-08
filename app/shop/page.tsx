@@ -8,8 +8,24 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { motion, AnimatePresence } from "framer-motion"
 import { X } from "lucide-react"
+import { toast } from "sonner"
 
-const products = [
+// Define product interface
+interface Product {
+  id: number
+  name: string
+  price: number
+  originalPrice?: number
+  image: string
+  category: string
+  featured?: boolean
+  isNew?: boolean
+  discount?: number
+  isPopular?: boolean
+}
+
+// Fallback products in case API fails
+const fallbackProducts = [
   {
     id: 1,
     name: "Wireless Headphones",
@@ -106,28 +122,252 @@ const products = [
 ]
 
 const categories = [
-  { id: "audio", label: "Audio" },
-  { id: "wearables", label: "Wearables" },
-  { id: "accessories", label: "Accessories" },
-  { id: "gaming", label: "Gaming" },
-  { id: "smartphones", label: "Smartphones" },
-  { id: "laptops", label: "Laptops" },
+  { id: "Smartphones", label: "Smartphones" },
+  { id: "Laptops", label: "Laptops" },
+  { id: "Tablets", label: "Tablets" },
+  { id: "Headphones", label: "Headphones" },
+  { id: "Speakers", label: "Speakers" },
+  { id: "Cameras", label: "Cameras" },
+  { id: "Wearables", label: "Wearables" },
+  { id: "Accessories", label: "Accessories" },
+  { id: "Gaming", label: "Gaming" },
+  { id: "Audio", label: "Audio" },
+  { id: "Other", label: "Other" },
 ]
 
 export default function ShopPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  // Set max price range based on most expensive product
-  const maxPrice = Math.max(...products.map(product => product.price))
-  const [priceRange, setPriceRange] = useState<number[]>([0, maxPrice])
-  const [filteredProducts, setFilteredProducts] = useState(products)
+  const [products, setProducts] = useState<Product[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  // Set initial max price range
+  const [maxPrice, setMaxPrice] = useState(100000)
+  const [priceRange, setPriceRange] = useState<number[]>([0, 100000])
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [isMounted, setIsMounted] = useState(false)
   
   // Client-side only code
   useEffect(() => {
     setIsMounted(true)
-    // Initialize with all products
-    applyFilters()
+  }, [])
+  
+  // Fetch products from the API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true)
+        
+        // Try to get products from localStorage cache first
+        if (typeof window !== 'undefined') {
+          const cachedProducts = localStorage.getItem('shopProducts')
+          if (cachedProducts) {
+            try {
+              const parsed = JSON.parse(cachedProducts)
+              if (parsed.length > 0) {
+                setProducts(parsed)
+                setFilteredProducts(parsed)
+                const maxProductPrice = Math.max(...parsed.map((p: Product) => p.price))
+                setMaxPrice(maxProductPrice)
+                setPriceRange([0, maxProductPrice])
+              }
+            } catch (e) {
+              console.error('Error parsing cached shop products:', e)
+            }
+          }
+        }
+        
+        // Import Supabase client
+        const { createClient } = await import('@supabase/supabase-js')
+        
+        // Initialize Supabase client
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+        
+        let transformedProducts: Product[] = []
+        
+        // Check if Supabase is configured
+        if (supabaseUrl && supabaseKey) {
+          try {
+            const supabase = createClient(supabaseUrl, supabaseKey)
+            
+            // Fetch products from Supabase
+            const { data, error } = await supabase
+              .from('products')
+              .select('*')
+              .order('created_at', { ascending: false })
+            
+            if (error) {
+              console.error('Supabase fetch error:', error)
+              throw error
+            }
+            
+            if (data && data.length > 0) {
+              // Transform the data to match our Product interface
+              transformedProducts = data.map((product: any) => ({
+                id: product.id,
+                name: product.name,
+                price: parseFloat(product.price),
+                originalPrice: product.original_price ? parseFloat(product.original_price) : undefined,
+                image: product.image_url || '/placeholder.svg?height=300&width=300',
+                category: product.category || 'Uncategorized',
+                isNew: product.is_new,
+                discount: product.discount,
+                featured: product.featured,
+                isPopular: product.is_popular
+              }))
+            } else {
+              // If no data from Supabase, try the API
+              throw new Error('No products found in Supabase')
+            }
+          } catch (supabaseError) {
+            console.error('Supabase error:', supabaseError)
+            // If Supabase fails, fall back to API
+            try {
+              const response = await fetch('/api/products', {
+                headers: { 
+                  'Accept': 'application/json',
+                  'Cache-Control': 'no-cache',
+                  'Pragma': 'no-cache'
+                },
+                cache: 'no-store'
+              })
+              
+              if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`)
+              }
+              
+              const data = await response.json()
+              
+              if (!Array.isArray(data)) {
+                throw new Error('Invalid API response format')
+              }
+              
+              // Transform the data to match our Product interface
+              transformedProducts = data.map((product: any) => ({
+                id: product.id,
+                name: product.name,
+                price: parseFloat(product.price),
+                originalPrice: product.original_price ? parseFloat(product.original_price) : undefined,
+                image: product.image_url || '/placeholder.svg?height=300&width=300',
+                category: product.category || 'Uncategorized',
+                isNew: product.is_new,
+                discount: product.discount,
+                featured: product.featured,
+                isPopular: product.is_popular
+              }))
+            } catch (apiError) {
+              console.error('API fetch error:', apiError)
+              // If API fails, add mock products
+              const adminMockProducts = [
+                {
+                  id: 101,
+                  name: "Tecno Camon 40",
+                  price: 25000,
+                  originalPrice: 29000,
+                  image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSmSnt8X5q-ljw1c",
+                  category: "Smartphones",
+                  isNew: true,
+                  isPopular: true,
+                  discount: 10,
+                },
+                {
+                  id: 102,
+                  name: "Gaming Mouse",
+                  price: 3500,
+                  originalPrice: 3800,
+                  image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSmSnt8X5q-ljw1c",
+                  category: "Gaming",
+                  isNew: true,
+                  isPopular: true,
+                  discount: 5,
+                }
+              ]
+              
+              // Combine with fallback products
+              transformedProducts = [...adminMockProducts, ...fallbackProducts]
+            }
+          }
+        } else {
+          // If Supabase is not configured, try the API
+          try {
+            const response = await fetch('/api/products', {
+              headers: { 
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              },
+              cache: 'no-store'
+            })
+            
+            if (!response.ok) {
+              throw new Error(`API error: ${response.status} ${response.statusText}`)
+            }
+            
+            const data = await response.json()
+            
+            if (!Array.isArray(data)) {
+              throw new Error('Invalid API response format')
+            }
+            
+            // Transform the data to match our Product interface
+            transformedProducts = data.map((product: any) => ({
+              id: product.id,
+              name: product.name,
+              price: parseFloat(product.price),
+              originalPrice: product.original_price ? parseFloat(product.original_price) : undefined,
+              image: product.image_url || '/placeholder.svg?height=300&width=300',
+              category: product.category || 'Uncategorized',
+              isNew: product.is_new,
+              discount: product.discount,
+              featured: product.featured,
+              isPopular: product.is_popular
+            }))
+          } catch (apiError) {
+            console.error('API fetch error:', apiError)
+            // If API fails, use fallback products
+            transformedProducts = [...fallbackProducts]
+          }
+        }
+        
+        if (transformedProducts.length > 0) {
+          setProducts(transformedProducts)
+          setFilteredProducts(transformedProducts)
+          
+          // Update price range based on actual products
+          const maxProductPrice = Math.max(...transformedProducts.map(p => p.price))
+          setMaxPrice(maxProductPrice)
+          setPriceRange([0, maxProductPrice])
+          
+          // Cache the products for future use
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('shopProducts', JSON.stringify(transformedProducts))
+          }
+        } else if (fallbackProducts.length > 0) {
+          // Use fallback products if no products were found
+          setProducts(fallbackProducts)
+          setFilteredProducts(fallbackProducts)
+          const maxProductPrice = Math.max(...fallbackProducts.map(p => p.price))
+          setMaxPrice(maxProductPrice)
+          setPriceRange([0, maxProductPrice])
+        }
+      } catch (error) {
+        console.error('Failed to fetch products:', error)
+        // Use fallback products if all methods fail
+        if (fallbackProducts.length > 0) {
+          setProducts(fallbackProducts)
+          setFilteredProducts(fallbackProducts)
+          const maxProductPrice = Math.max(...fallbackProducts.map(p => p.price))
+          setMaxPrice(maxProductPrice)
+          setPriceRange([0, maxProductPrice])
+        }
+        // Show error message
+        toast.error('Failed to load products, showing sample data')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    fetchProducts()
   }, [])
 
   // Toggle category selection
@@ -148,7 +388,8 @@ export default function ShopPage() {
     // Filter by category if any selected
     if (selectedCategories.length > 0) {
       filtered = filtered.filter(product => 
-        selectedCategories.includes(product.category.toLowerCase())
+        // Match exact category name (case-sensitive)
+        selectedCategories.includes(product.category || '')
       )
     }
     
@@ -374,31 +615,38 @@ export default function ShopPage() {
 
         {/* Products Grid */}
         <div className="md:col-span-3">
-          <motion.div 
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((product) => (
-                <motion.div key={product.id} variants={itemVariants}>
-                  <ProductCard product={product} />
-                </motion.div>
-              ))
-            ) : (
-              <div className="col-span-full text-center py-12">
-                <p className="text-lg text-gray-500">No products match your filters</p>
-                <Button 
-                  onClick={resetFilters} 
-                  variant="link" 
-                  className="mt-2 text-orange-500"
-                >
-                  Reset filters
-                </Button>
-              </div>
-            )}
-          </motion.div>
+          {isLoading ? (
+            <div className="col-span-full flex justify-center items-center py-20">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
+              <span className="ml-2 text-lg">Loading products...</span>
+            </div>
+          ) : (
+            <motion.div 
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {filteredProducts.length > 0 ? (
+                filteredProducts.map((product) => (
+                  <motion.div key={product.id} variants={itemVariants}>
+                    <ProductCard product={product} />
+                  </motion.div>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-lg text-gray-500">No products match your filters</p>
+                  <Button 
+                    onClick={resetFilters} 
+                    variant="link" 
+                    className="mt-2 text-orange-500"
+                  >
+                    Reset filters
+                  </Button>
+                </div>
+              )}
+            </motion.div>
+          )}
         </div>
       </div>
     </div>

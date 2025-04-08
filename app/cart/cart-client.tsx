@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Trash2, MinusCircle, PlusCircle, ArrowRight, ShoppingCart } from "lucide-react"
+import { Trash, Minus, Plus, ChevronRight, ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -46,10 +46,8 @@ export default function CartClient() {
   const total = subtotal + shipping + tax
 
   const handleCheckout = () => {
-    toast.success("Checkout initiated", {
-      description: "This would normally redirect to a payment page",
-    })
-    // In a real app, you would redirect to a checkout page or payment gateway
+    // Navigate to the payment page
+    router.push('/payment')
   }
 
   return (
@@ -79,7 +77,7 @@ export default function CartClient() {
                           onClick={() => updateItemQuantity(item.id, Math.max(1, item.quantity - 1))}
                           disabled={item.quantity <= 1}
                         >
-                          <MinusCircle className="h-4 w-4" />
+                          <Minus className="h-4 w-4" />
                         </Button>
                         <span className="w-8 text-center">{item.quantity}</span>
                         <Button
@@ -88,7 +86,7 @@ export default function CartClient() {
                           className="h-8 w-8"
                           onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
                         >
-                          <PlusCircle className="h-4 w-4" />
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                       <div className="flex items-center space-x-4">
@@ -99,7 +97,7 @@ export default function CartClient() {
                           className="text-destructive"
                           onClick={() => removeItem(item.id)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -149,7 +147,7 @@ export default function CartClient() {
                 size="lg" 
                 onClick={handleCheckout}
               >
-                Checkout <ArrowRight className="ml-2 h-4 w-4" />
+                Checkout <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </CardContent>

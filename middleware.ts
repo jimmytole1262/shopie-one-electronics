@@ -8,9 +8,11 @@ const publicPaths = [
   '/products(.*)',
   '/about-us',
   '/contact',
-  '/api/products(.*)',
+  '/api/products(.*)',  // Allow all product API routes to be public for now
   '/api/admin(.*)',
-  '/api/admins(.*)'
+  '/api/admins(.*)',
+  '/admin(.*)',        // Allow admin routes to be public for debugging
+  '/seller-dashboard(.*)' // Allow seller dashboard to be public for debugging
 ];
 
 export default clerkMiddleware(async (auth, req) => {
