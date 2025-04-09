@@ -5,6 +5,7 @@ import ProductCard from "@/components/product-card"
 import { useEffect, useState } from "react"
 import { X } from "lucide-react"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
 
 interface Product {
   id: number
@@ -105,7 +106,7 @@ export default function PopularProducts() {
         
         try {
           // Import Supabase client
-          const { createClient } = await import('@supabase/supabase-js')
+          // const { createClient } = await import('@supabase/supabase-js')
           
           // Initialize Supabase client
           const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -114,8 +115,7 @@ export default function PopularProducts() {
           // Check if Supabase is configured
           if (supabaseUrl && supabaseKey) {
             try {
-              const supabase = createClient(supabaseUrl, supabaseKey)
-              
+              // const supabase = createClient(supabaseUrl, supabaseKey)
               // Fetch products from Supabase
               const { data: supabaseData, error } = await supabase
                 .from('products')

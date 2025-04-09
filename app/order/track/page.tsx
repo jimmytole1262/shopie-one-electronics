@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { getOrderByReference } from "@/lib/email-service"
 import { formatKesPrice } from "@/lib/utils"
-import { ShoppingBag, Settings, Truck, Check, Search, MapPin } from "lucide-react"
+import { Search, MapPin } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import dynamic from "next/dynamic"
@@ -97,7 +97,12 @@ export default function OrderTrackingPage() {
       <h1 className="text-2xl font-bold mb-6">Track Your Order</h1>
       
       {/* Order Tracking Form */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="bg-white p-6 rounded-lg shadow-md mb-8"
+      >
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-grow">
             <label htmlFor="orderReference" className="block text-sm font-medium text-gray-700 mb-1">
@@ -113,202 +118,208 @@ export default function OrderTrackingPage() {
             />
           </div>
           <div className="flex items-end">
-            <button
+            <motion.button
               onClick={handleTrackOrder}
               disabled={loading}
-              className="w-full md:w-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-300 flex items-center justify-center"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center"
             >
               {loading ? (
-                <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Tracking...
+                </>
               ) : (
-                <Search className="h-4 w-4 mr-2" />
+                <>
+                  <Search className="w-4 h-4 mr-2" />
+                  Track Order
+                </>
               )}
-              {loading ? "Tracking..." : "Track Order"}
-            </button>
+            </motion.button>
           </div>
         </div>
         
         {error && (
-          <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md">
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-4 p-3 bg-red-50 text-red-700 rounded-md"
+          >
             {error}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
       
-      {/* Order Status */}
+      {/* Order Details */}
       {order && (
-        <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Order Status</h2>
-          
-          <div className="relative">
-            {/* Status Timeline */}
-            <div className="flex justify-between mb-4">
-              {["received", "processing", "shipped", "delivered"].map((status, index) => {
-                const isCompleted = getStatusIndex(order.status) >= index
-                const isCurrent = order.status === status
-                
-                return (
-                  <div key={status} className="flex flex-col items-center relative z-10 w-1/4">
-                    <motion.div 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: index * 0.2 }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`}
-                    >
-                      {status === "received" && <ShoppingBag className="h-5 w-5 text-white" />}
-                      {status === "processing" && <Settings className="h-5 w-5 text-white" />}
-                      {status === "shipped" && <Truck className="h-5 w-5 text-white" />}
-                      {status === "delivered" && <Check className="h-5 w-5 text-white" />}
-                    </motion.div>
-                    <p className={`mt-2 text-sm font-medium ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'}`}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </p>
-                    {isCurrent && (
-                      <p className="text-xs text-blue-600 mt-1">(Current)</p>
-                    )}
-                  </div>
-                )
-              })}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="bg-white rounded-lg shadow-md overflow-hidden"
+        >
+          {/* Order Status */}
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex flex-col md:flex-row justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold">Order #{order.orderReference}</h2>
+                <p className="text-gray-600">Placed on {formatDate(order.orderDate)}</p>
+              </div>
+              <div className="mt-2 md:mt-0">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                </span>
+              </div>
             </div>
             
-            {/* Timeline Line */}
-            <div className="absolute top-5 left-0 w-full h-0.5 bg-gray-200 z-0">
-              <motion.div 
-                initial={{ width: "0%" }}
-                animate={{ width: `${getStatusIndex(order.status) * 33.33}%` }}
-                transition={{ duration: 1 }}
-                className="h-full bg-green-500"
-              />
+            <div className="relative">
+              <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-200">
+                <div 
+                  className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-600"
+                  style={{ width: `${(getStatusIndex(order.status) + 1) * 25}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-xs text-gray-600">
+                <div className="w-1/4 text-center">
+                  <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center ${getStatusIndex(order.status) >= 0 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                    <span className="text-xs font-bold">1</span>
+                  </div>
+                  <p className="mt-1">Received</p>
+                </div>
+                <div className="w-1/4 text-center">
+                  <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center ${getStatusIndex(order.status) >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                    <span className="text-xs font-bold">2</span>
+                  </div>
+                  <p className="mt-1">Processing</p>
+                </div>
+                <div className="w-1/4 text-center">
+                  <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center ${getStatusIndex(order.status) >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                    <span className="text-xs font-bold">3</span>
+                  </div>
+                  <p className="mt-1">Shipped</p>
+                </div>
+                <div className="w-1/4 text-center">
+                  <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center ${getStatusIndex(order.status) >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                    <span className="text-xs font-bold">✓</span>
+                  </div>
+                  <p className="mt-1">Delivered</p>
+                </div>
+              </div>
             </div>
           </div>
           
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="font-medium text-gray-700 mb-2">Estimated Delivery</h3>
-              <p className="text-gray-900">{formatDate(order.estimatedDeliveryDate)}</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-700 mb-2">Order Reference</h3>
-              <p className="text-gray-900">{order.orderReference}</p>
+          {/* Delivery Information */}
+          <div className="p-6 border-b border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-1">Estimated Delivery</h3>
+                <p className="font-medium">{formatDate(order.estimatedDeliveryDate)}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-1">Tracking Number</h3>
+                <p className="font-medium">{order.trackingNumber || "Not available yet"}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-1">Shipping Address</h3>
+                <p className="font-medium">{order.shippingAddress || "Not available"}</p>
+              </div>
             </div>
           </div>
           
           {/* Delivery Map */}
-          <div className="mt-6">
-            <div className="flex items-center mb-3">
-              <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-              <h3 className="font-medium text-gray-700">Delivery Tracking</h3>
+          {getStatusIndex(order.status) >= 2 && (
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-medium mb-4">Delivery Location</h3>
+              <DeliveryMap 
+                orderStatus={order.status}
+                estimatedDeliveryDate={new Date(order.estimatedDeliveryDate)}
+                shippingAddress={order.shippingAddress || "Not available"}
+              />
             </div>
-            <DeliveryMap 
-              orderStatus={order.status}
-              estimatedDeliveryDate={new Date(order.estimatedDeliveryDate)}
-              shippingAddress={order.shippingAddress}
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              {order.status === 'received' ? 'Your order has been received and is being prepared at our warehouse.' :
-               order.status === 'processing' ? 'Your order is being processed and will be shipped soon.' :
-               order.status === 'shipped' ? 'Your order is on the way! Track its progress on the map above.' :
-               'Your order has been delivered. Thank you for shopping with us!'}
-            </p>
-          </div>
-        </div>
-      )}
-      
-      {/* Order Details */}
-      {order && (
-        <div className="mt-8 bg-white p-6 rounded-lg shadow-md mb-8">
-          <h2 className="text-xl font-semibold mb-4">Order Details</h2>
+          )}
           
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Shipping Address</h3>
-              <p className="text-gray-600">{order.shippingAddress || "Not provided"}</p>
-            </div>
-            
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Contact Information</h3>
-              <p className="text-gray-600">{order.customerName}</p>
-              <p className="text-gray-600">{order.customerEmail}</p>
-            </div>
-            
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Order Summary</h3>
-              <div className="border rounded-md overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Product
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Price
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quantity
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {order.items.map((item: any, index: number) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-10 w-10 flex-shrink-0 mr-3">
-                              <Image
-                                src={item.image || "/images/product-placeholder.svg"}
-                                alt={item.name}
-                                width={40}
-                                height={40}
-                                className="h-10 w-10 rounded-md object-cover"
-                              />
-                            </div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {item.name}
-                            </div>
+          {/* Order Items */}
+          <div className="p-6">
+            <h3 className="text-lg font-medium mb-4">Order Items</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Quantity
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {order.items.map((item: any, index: number) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="h-10 w-10 flex-shrink-0 mr-3">
+                            <Image
+                              src={item.image || "/images/product-placeholder.svg"}
+                              alt={item.name}
+                              width={40}
+                              height={40}
+                              className="h-10 w-10 rounded-md object-cover"
+                            />
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatKesPrice(item.price)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {item.quantity}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatKesPrice(item.price * item.quantity)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-50">
-                    <tr>
-                      <td colSpan={2} className="px-6 py-3"></td>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-500">Subtotal</td>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatKesPrice(order.subtotal)}</td>
+                          <div className="text-sm font-medium text-gray-900">
+                            {item.name}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatKesPrice(item.price)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.quantity}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatKesPrice(item.price * item.quantity)}
+                      </td>
                     </tr>
-                    <tr>
-                      <td colSpan={2} className="px-6 py-3"></td>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-500">Shipping</td>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatKesPrice(order.shipping)}</td>
-                    </tr>
-                    <tr>
-                      <td colSpan={2} className="px-6 py-3"></td>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-500">Tax</td>
-                      <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatKesPrice(order.tax)}</td>
-                    </tr>
-                    <tr>
-                      <td colSpan={2} className="px-6 py-3"></td>
-                      <td className="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
-                      <td className="px-6 py-3 text-sm font-bold text-gray-900">{formatKesPrice(order.total)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td colSpan={2} className="px-6 py-3"></td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-500">Subtotal</td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatKesPrice(order.subtotal)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} className="px-6 py-3"></td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-500">Shipping</td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatKesPrice(order.shipping)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} className="px-6 py-3"></td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-500">Tax</td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{formatKesPrice(order.tax)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} className="px-6 py-3"></td>
+                    <td className="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
+                    <td className="px-6 py-3 text-sm font-bold text-gray-900">{formatKesPrice(order.total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   )

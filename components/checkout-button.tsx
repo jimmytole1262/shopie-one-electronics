@@ -1,17 +1,12 @@
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function CheckoutButton() {
+  const router = useRouter();
+  
   const handleCheckout = async () => {
-    const response = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ items })
-    });
-
-    const { url } = await response.json();
-    window.location.href = url; // Direct redirect to Stripe
+    // Redirect to payment page
+    router.push('/payment');
   };
 
   return (

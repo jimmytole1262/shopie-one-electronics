@@ -8,8 +8,8 @@ import { formatKesPrice } from "@/lib/utils"
 import { ChevronLeft, Check } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { sendOrderConfirmationEmail, OrderDetails } from "@/lib/email-service"
-import { getToast } from '@/lib/toast-utils';
+import { sendOrderConfirmationEmail, OrderDetails, saveOrderToLocalStorage } from "@/lib/email-service"
+import { getToast } from '@/lib/toast-utils'
 
 export default function PaymentPage() {
   const router = useRouter()
@@ -19,12 +19,18 @@ export default function PaymentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [orderReference, setOrderReference] = useState("")
+  const [trackingNumber, setTrackingNumber] = useState("")
+  const [transactionId, setTransactionId] = useState("")
   
   // Form state
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     phone: "",
+    address: "",
+    city: "",
+    country: "",
+    postalCode: "",
     mpesaPhone: "",
     cardNumber: "",
     expiryDate: "",
@@ -36,6 +42,10 @@ export default function PaymentPage() {
     fullName: "",
     email: "",
     phone: "",
+    address: "",
+    city: "",
+    country: "",
+    postalCode: "",
     mpesaPhone: "",
     cardNumber: "",
     expiryDate: "",
@@ -64,7 +74,7 @@ export default function PaymentPage() {
     }
   }, [router, items.length])
 
-  // Calculate order summary - moved inside useEffect to ensure client-side rendering
+  // Calculate order summary
   const [orderSummary, setOrderSummary] = useState({
     subtotal: 0,
     shipping: 0,
@@ -80,13 +90,6 @@ export default function PaymentPage() {
       const calculatedTax = calculatedSubtotal * 0.08
       const calculatedTotal = calculatedSubtotal + calculatedShipping + calculatedTax
       
-      console.log('Calculated values:', {
-        subtotal: calculatedSubtotal,
-        shipping: calculatedShipping,
-        tax: calculatedTax,
-        total: calculatedTotal
-      })
-      
       setOrderSummary({
         subtotal: calculatedSubtotal,
         shipping: calculatedShipping,
@@ -95,6 +98,291 @@ export default function PaymentPage() {
       })
     }
   }, [isMounted, items, totalPrice])
+
+  // Form validation function
+  const validateForm = () => {
+    let isValid = true
+    const newErrors = { ...errors }
+    
+    // Validate full name
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = "Full name is required"
+      isValid = false
+    } else {
+      newErrors.fullName = ""
+    }
+    
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required"
+      isValid = false
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address"
+      isValid = false
+    } else {
+      newErrors.email = ""
+    }
+    
+    // Validate phone
+    const phoneRegex = /^\+?[0-9]{10,15}$/
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone number is required"
+      isValid = false
+    } else if (!phoneRegex.test(formData.phone)) {
+      newErrors.phone = "Please enter a valid phone number"
+      isValid = false
+    } else {
+      newErrors.phone = ""
+    }
+    
+    // Validate address
+    if (!formData.address.trim()) {
+      newErrors.address = "Address is required"
+      isValid = false
+    } else {
+      newErrors.address = ""
+    }
+    
+    // Validate city
+    if (!formData.city.trim()) {
+      newErrors.city = "City is required"
+      isValid = false
+    } else {
+      newErrors.city = ""
+    }
+    
+    // Validate country
+    if (!formData.country.trim()) {
+      newErrors.country = "Country is required"
+      isValid = false
+    } else {
+      newErrors.country = ""
+    }
+    
+    // Validate postal code
+    if (!formData.postalCode.trim()) {
+      newErrors.postalCode = "Postal code is required"
+      isValid = false
+    } else {
+      newErrors.postalCode = ""
+    }
+    
+    // Payment method specific validation
+    if (paymentMethod === "card") {
+      // Validate card number
+      const cardNumberRegex = /^[0-9]{16}$/
+      if (!formData.cardNumber.trim()) {
+        newErrors.cardNumber = "Card number is required"
+        isValid = false
+      } else if (!cardNumberRegex.test(formData.cardNumber.replace(/\s/g, ''))) {
+        newErrors.cardNumber = "Please enter a valid 16-digit card number"
+        isValid = false
+      } else {
+        newErrors.cardNumber = ""
+      }
+      
+      // Validate expiry date
+      const expiryDateRegex = /^(0[1-9]|1[0-2])\/([0-9]{2})$/
+      if (!formData.expiryDate.trim()) {
+        newErrors.expiryDate = "Expiry date is required"
+        isValid = false
+      } else if (!expiryDateRegex.test(formData.expiryDate)) {
+        newErrors.expiryDate = "Please enter a valid expiry date (MM/YY)"
+        isValid = false
+      } else {
+        newErrors.expiryDate = ""
+      }
+      
+      // Validate CVV
+      const cvvRegex = /^[0-9]{3,4}$/
+      if (!formData.cvv.trim()) {
+        newErrors.cvv = "CVV is required"
+        isValid = false
+      } else if (!cvvRegex.test(formData.cvv)) {
+        newErrors.cvv = "Please enter a valid CVV"
+        isValid = false
+      } else {
+        newErrors.cvv = ""
+      }
+    } else if (paymentMethod === "mpesa") {
+      // Validate M-Pesa phone number
+      const mpesaPhoneRegex = /^(?:\+254|0)[17][0-9]{8}$/
+      if (!formData.mpesaPhone.trim()) {
+        newErrors.mpesaPhone = "M-Pesa phone number is required"
+        isValid = false
+      } else if (!mpesaPhoneRegex.test(formData.mpesaPhone)) {
+        newErrors.mpesaPhone = "Please enter a valid M-Pesa phone number"
+        isValid = false
+      } else {
+        newErrors.mpesaPhone = ""
+      }
+    }
+    
+    setErrors(newErrors)
+    return isValid
+  }
+  
+  // Handle input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    
+    // Special formatting for card number
+    if (name === "cardNumber") {
+      // Remove non-digit characters
+      const digitsOnly = value.replace(/\D/g, '')
+      
+      // Format with spaces every 4 digits
+      let formattedValue = ''
+      for (let i = 0; i < digitsOnly.length; i++) {
+        if (i > 0 && i % 4 === 0) {
+          formattedValue += ' '
+        }
+        formattedValue += digitsOnly[i]
+      }
+      
+      // Limit to 19 characters (16 digits + 3 spaces)
+      const limitedValue = formattedValue.slice(0, 19)
+      
+      setFormData({
+        ...formData,
+        [name]: limitedValue
+      })
+    } 
+    // Special formatting for expiry date
+    else if (name === "expiryDate") {
+      // Remove non-digit characters
+      const digitsOnly = value.replace(/\D/g, '')
+      
+      // Format with slash after first 2 digits
+      let formattedValue = ''
+      if (digitsOnly.length > 0) {
+        formattedValue = digitsOnly.slice(0, 2)
+        if (digitsOnly.length > 2) {
+          formattedValue += '/' + digitsOnly.slice(2, 4)
+        }
+      }
+      
+      setFormData({
+        ...formData,
+        [name]: formattedValue
+      })
+    }
+    // Special formatting for CVV
+    else if (name === "cvv") {
+      // Remove non-digit characters and limit to 4 digits
+      const limitedValue = value.replace(/\D/g, '').slice(0, 4)
+      
+      setFormData({
+        ...formData,
+        [name]: limitedValue
+      })
+    }
+    // Default handling for other fields
+    else {
+      setFormData({
+        ...formData,
+        [name]: value
+      })
+    }
+  }
+  
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Validate form
+    if (!validateForm()) {
+      // Show error toast
+      const toast = await getToast()
+      toast.error("Please fix the errors in the form")
+      return
+    }
+    
+    setIsSubmitting(true)
+    
+    try {
+      // Create order details
+      const orderDate = new Date()
+      const estimatedDeliveryDate = new Date()
+      estimatedDeliveryDate.setDate(orderDate.getDate() + 7) // Delivery in 7 days
+      
+      const orderDetails: OrderDetails = {
+        orderReference,
+        customerName: formData.fullName,
+        customerEmail: formData.email,
+        items,
+        subtotal: orderSummary.subtotal,
+        shipping: orderSummary.shipping,
+        tax: orderSummary.tax,
+        total: orderSummary.total,
+        orderDate,
+        estimatedDeliveryDate,
+        status: 'received',
+        shippingAddress: `${formData.address}, ${formData.city}, ${formData.country}, ${formData.postalCode}`,
+        paymentMethod
+      }
+      
+      // Process payment based on method
+      if (paymentMethod === "card") {
+        // Simulate card payment processing
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
+        // Simulate successful payment
+        const transactionId = `CC-${Math.floor(100000 + Math.random() * 900000)}`
+        setTransactionId(transactionId)
+        
+        // Update order details with transaction ID
+        orderDetails.transactionId = transactionId
+      } else if (paymentMethod === "mpesa") {
+        // Process M-Pesa payment
+        const mpesaResponse = await fetch('/api/mpesa', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone: formData.mpesaPhone,
+            amount: orderSummary.total,
+            orderReference
+          }),
+        })
+        
+        if (!mpesaResponse.ok) {
+          throw new Error('Failed to process M-Pesa payment')
+        }
+        
+        const mpesaData = await mpesaResponse.json()
+        
+        // Update transaction ID
+        setTransactionId(mpesaData.transactionId)
+        orderDetails.transactionId = mpesaData.transactionId
+      }
+      
+      // Send order confirmation email
+      const emailResponse = await sendOrderConfirmationEmail(orderDetails)
+      const emailData = await emailResponse.json()
+      
+      // Update tracking number
+      setTrackingNumber(emailData.trackingNumber)
+      
+      // Clear cart
+      clearCart()
+      
+      // Show success
+      setIsSuccess(true)
+      
+      // Show success toast
+      const toast = await getToast()
+      toast.success("Payment successful! Order confirmed.")
+    } catch (error) {
+      console.error('Payment error:', error)
+      const toast = await getToast()
+      toast.error("Payment failed. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   // Prevent hydration errors by returning null during SSR
   if (!isMounted) {
@@ -115,582 +403,297 @@ export default function PaymentPage() {
       </div>
     )
   }
-
-  const validateForm = () => {
-    let isValid = true
-    const newErrors = { ...errors }
-    
-    // Validate full name
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = "Full name is required"
-      isValid = false
-    } else {
-      newErrors.fullName = ""
-    }
-    
-    // Validate email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required"
-      isValid = false
-    } else if (!emailRegex.test(formData.email)) {
-      newErrors.email = "Please enter a valid email"
-      isValid = false
-    } else {
-      newErrors.email = ""
-    }
-    
-    // Validate phone
-    const phoneRegex = /^0\d{9}$/
-    if (!formData.phone.trim()) {
-      newErrors.phone = "Phone number is required"
-      isValid = false
-    } else if (!phoneRegex.test(formData.phone)) {
-      newErrors.phone = "Please enter a valid Kenyan phone number (e.g., 0711234567)"
-      isValid = false
-    } else {
-      newErrors.phone = ""
-    }
-    
-    // Validate payment method specific fields
-    if (paymentMethod === "mpesa") {
-      if (!formData.mpesaPhone.trim()) {
-        newErrors.mpesaPhone = "M-Pesa phone number is required"
-        isValid = false
-      } else if (!phoneRegex.test(formData.mpesaPhone)) {
-        newErrors.mpesaPhone = "Please enter a valid Kenyan phone number (e.g., 0711234567)"
-        isValid = false
-      } else {
-        newErrors.mpesaPhone = ""
-      }
-    } else {
-      // Card validation
-      const cardNumberRegex = /^\d{16}$/
-      const expiryDateRegex = /^(0[1-9]|1[0-2])\/\d{2}$/
-      const cvvRegex = /^\d{3}$/
-      
-      if (!formData.cardNumber.replace(/\s/g, "").trim()) {
-        newErrors.cardNumber = "Card number is required"
-        isValid = false
-      } else if (!cardNumberRegex.test(formData.cardNumber.replace(/\s/g, ""))) {
-        newErrors.cardNumber = "Please enter a valid 16-digit card number"
-        isValid = false
-      } else {
-        newErrors.cardNumber = ""
-      }
-      
-      if (!formData.expiryDate.trim()) {
-        newErrors.expiryDate = "Expiry date is required"
-        isValid = false
-      } else if (!expiryDateRegex.test(formData.expiryDate)) {
-        newErrors.expiryDate = "Please enter a valid expiry date (MM/YY)"
-        isValid = false
-      } else {
-        newErrors.expiryDate = ""
-      }
-      
-      if (!formData.cvv.trim()) {
-        newErrors.cvv = "CVV is required"
-        isValid = false
-      } else if (!cvvRegex.test(formData.cvv)) {
-        newErrors.cvv = "Please enter a valid 3-digit CVV"
-        isValid = false
-      } else {
-        newErrors.cvv = ""
-      }
-    }
-    
-    setErrors(newErrors)
-    return isValid
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    
-    // Format card number with spaces
-    if (name === "cardNumber") {
-      const formattedValue = value
-        .replace(/\s/g, "")
-        .replace(/(\d{4})/g, "$1 ")
-        .trim()
-      
-      setFormData({
-        ...formData,
-        [name]: formattedValue
-      })
-      return
-    }
-    
-    // Format expiry date with slash
-    if (name === "expiryDate") {
-      let formattedValue = value.replace(/\//g, "")
-      if (formattedValue.length > 2) {
-        formattedValue = `${formattedValue.slice(0, 2)}/${formattedValue.slice(2, 4)}`
-      }
-      
-      setFormData({
-        ...formData,
-        [name]: formattedValue
-      })
-      return
-    }
-    
-    setFormData({
-      ...formData,
-      [name]: value
-    })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!validateForm()) {
-      return
-    }
-    
-    setIsSubmitting(true)
-    
-    try {
-      const reference = orderReference || generateOrderReference()
-      if (!orderReference) {
-        setOrderReference(reference)
-      }
-
-      const response = await sendOrderConfirmationEmail({
-        orderReference: reference,
-        customerName: formData.fullName,
-        customerEmail: formData.email,
-        items: items,
-        subtotal: orderSummary.subtotal,
-        shipping: orderSummary.shipping,
-        tax: orderSummary.tax,
-        total: orderSummary.total,
-        orderDate: new Date(),
-        estimatedDeliveryDate: new Date(),
-        status: 'received',
-        shippingAddress: "" // In a real app, we would collect this
-      })
-
-      if (response.ok) {
-        setOrderReference(reference)
-        setIsSuccess(true)
-        clearCart()
-        const toast = await getToast();
-        toast.success('Payment successful!');
-      } else {
-        throw new Error('Payment processing failed')
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      const toast = await getToast();
-      toast.error(error instanceof Error ? error.message : 'Payment failed');
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // Success screen
+  
+  // Payment success screen
   if (isSuccess) {
     return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="max-w-4xl mx-auto py-12 px-4"
-      >
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-lg shadow-lg p-8 text-center"
+      <div className="max-w-6xl mx-auto py-8 px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="bg-white rounded-lg shadow-md p-8 text-center"
         >
           <motion.div 
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 200, delay: 0.4 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
             className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6"
           >
-            <Check className="h-10 w-10 text-green-600" />
+            <Check className="w-10 h-10 text-green-600" />
           </motion.div>
           
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="text-2xl font-bold mb-4"
-          >
-            Payment Successful!
-          </motion.div>
+          <h1 className="text-2xl font-bold mb-2">Payment Successful!</h1>
+          <p className="text-gray-600 mb-6">Your order has been confirmed and is being processed.</p>
           
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.7 }}
-            className="text-gray-600 mb-6"
-          >
-            Thank you for your purchase. A confirmation email has been sent to {formData.email}.
-          </motion.div>
-          
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="bg-gray-50 rounded-lg p-4 mb-6"
-          >
-            <p className="text-gray-600">Order Reference:</p>
-            <p className="text-lg font-semibold">{orderReference}</p>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.9 }}
-            className="flex flex-col md:flex-row gap-4 justify-center"
-          >
-            <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-6 rounded-md font-medium w-full md:w-auto"
-                onClick={() => router.push(`/order/track?ref=${orderReference}`)}
-              >
-                Track Your Order
-              </motion.button>
-            <Link href="/shop">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-orange-500 hover:bg-orange-600 text-white py-3 px-6 rounded-md font-medium w-full md:w-auto"
-              >
-                Continue Shopping
-              </motion.button>
-            </Link>
-          </motion.div>
-        </motion.div>
-      </motion.div>
-    )
-  }
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="max-w-6xl mx-auto py-8 px-4"
-    >
-      <Link href="/shopping-cart" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6">
-        <ChevronLeft className="h-4 w-4 mr-2" />
-        Return to Cart
-      </Link>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Payment Form */}
-        <motion.div 
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="md:col-span-2"
-        >
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h1 className="text-2xl font-semibold mb-6">Payment Details</h1>
-            
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-6">
-                {/* Personal Information */}
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    id="fullName"
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:outline-none ${
-                      errors.fullName ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="John Doe"
-                  />
-                  {errors.fullName && (
-                    <p className="mt-1 text-sm text-red-500">{errors.fullName}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:outline-none ${
-                      errors.email ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="johndoe@example.com"
-                  />
-                  {errors.email && (
-                    <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:outline-none ${
-                      errors.phone ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="0711234567"
-                  />
-                  {errors.phone && (
-                    <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
-                  )}
-                </div>
-                
-                {/* Payment Method Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Payment Method
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`flex items-center justify-center py-3 px-4 rounded-md border ${
-                        paymentMethod === "card"
-                          ? "border-orange-500 bg-orange-50 text-orange-700"
-                          : "border-gray-300 text-gray-700"
-                      }`}
-                      onClick={() => setPaymentMethod("card")}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                      </svg>
-                      Credit/Debit Card
-                    </motion.button>
-                    
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`flex items-center justify-center py-3 px-4 rounded-md border ${
-                        paymentMethod === "mpesa"
-                          ? "border-orange-500 bg-orange-50 text-orange-700"
-                          : "border-gray-300 text-gray-700"
-                      }`}
-                      onClick={() => setPaymentMethod("mpesa")}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                      M-Pesa
-                    </motion.button>
-                  </div>
-                </div>
-                
-                {/* Payment Method Specific Fields */}
-                <AnimatePresence>
-                  {paymentMethod === "card" ? (
-                    <motion.div
-                      key="card-fields"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.3 }}
-                      className="space-y-4"
-                    >
-                      <div>
-                        <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                          Card Number
-                        </label>
-                        <input
-                          type="text"
-                          id="cardNumber"
-                          name="cardNumber"
-                          value={formData.cardNumber}
-                          onChange={handleInputChange}
-                          maxLength={19}
-                          className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:outline-none ${
-                            errors.cardNumber ? "border-red-500" : "border-gray-300"
-                          }`}
-                          placeholder="1234 5678 9012 3456"
-                        />
-                        {errors.cardNumber && (
-                          <p className="mt-1 text-sm text-red-500">{errors.cardNumber}</p>
-                        )}
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="expiryDate" className="block text-sm font-medium text-gray-700 mb-1">
-                            Expiry Date
-                          </label>
-                          <input
-                            type="text"
-                            id="expiryDate"
-                            name="expiryDate"
-                            value={formData.expiryDate}
-                            onChange={handleInputChange}
-                            maxLength={5}
-                            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:outline-none ${
-                              errors.expiryDate ? "border-red-500" : "border-gray-300"
-                            }`}
-                            placeholder="MM/YY"
-                          />
-                          {errors.expiryDate && (
-                            <p className="mt-1 text-sm text-red-500">{errors.expiryDate}</p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="cvv" className="block text-sm font-medium text-gray-700 mb-1">
-                            CVV
-                          </label>
-                          <input
-                            type="text"
-                            id="cvv"
-                            name="cvv"
-                            value={formData.cvv}
-                            onChange={handleInputChange}
-                            maxLength={3}
-                            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:outline-none ${
-                              errors.cvv ? "border-red-500" : "border-gray-300"
-                            }`}
-                            placeholder="123"
-                          />
-                          {errors.cvv && (
-                            <p className="mt-1 text-sm text-red-500">{errors.cvv}</p>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="mpesa-fields"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <div>
-                        <label htmlFor="mpesaPhone" className="block text-sm font-medium text-gray-700 mb-1">
-                          M-Pesa Phone Number
-                        </label>
-                        <input
-                          type="tel"
-                          id="mpesaPhone"
-                          name="mpesaPhone"
-                          value={formData.mpesaPhone}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-orange-500 focus:outline-none ${
-                            errors.mpesaPhone ? "border-red-500" : "border-gray-300"
-                          }`}
-                          placeholder="07XX XXX XXX"
-                        />
-                        {errors.mpesaPhone && (
-                          <p className="mt-1 text-sm text-red-500">{errors.mpesaPhone}</p>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                
-                <motion.button
-                  type="submit"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-md font-medium flex items-center justify-center"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing...
-                    </>
-                  ) : (
-                    "Pay Now"
-                  )}
-                </motion.button>
+          <div className="bg-gray-50 p-6 rounded-lg mb-6 max-w-md mx-auto">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="text-left">
+                <p className="text-gray-500 mb-1">Order Reference</p>
+                <p className="font-medium">{orderReference}</p>
               </div>
-            </form>
+              <div className="text-left">
+                <p className="text-gray-500 mb-1">Tracking Number</p>
+                <p className="font-medium">{trackingNumber}</p>
+              </div>
+              <div className="text-left">
+                <p className="text-gray-500 mb-1">Payment Method</p>
+                <p className="font-medium">{paymentMethod === "card" ? "Credit Card" : "M-Pesa"}</p>
+              </div>
+              <div className="text-left">
+                <p className="text-gray-500 mb-1">Transaction ID</p>
+                <p className="font-medium">{transactionId}</p>
+              </div>
+            </div>
           </div>
-        </motion.div>
-        
-        {/* Order Summary */}
-        <motion.div
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="md:col-span-1"
-        >
-          <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
-            <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal</span>
-                <span>{formatKesPrice(orderSummary.subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Shipping</span>
-                <span>{formatKesPrice(orderSummary.shipping)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Tax (8%)</span>
-                <span>{formatKesPrice(orderSummary.tax)}</span>
-              </div>
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                transition={{ duration: 0.3, delay: 0.4 }}
-                className="border-t pt-3 mt-3"
-              >
-                <div className="flex justify-between font-semibold">
-                  <span>Total</span>
-                  <span className="text-lg">{formatKesPrice(orderSummary.total)}</span>
-                </div>
-              </motion.div>
-            </div>
-            
-            <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">We Accept</h3>
-              <div className="flex items-center space-x-4">
-                <div className="bg-gray-100 rounded p-2">
-                  <Image src="/visa.svg" alt="Visa" width={40} height={30} />
-                </div>
-                <div className="bg-gray-100 rounded p-2">
-                  <Image src="/mastercard.svg" alt="Mastercard" width={40} height={30} />
-                </div>
-                <div className="bg-gray-100 rounded p-2">
-                  <Image src="/paypal.svg" alt="PayPal" width={40} height={30} />
-                </div>
-                <div className="bg-gray-100 rounded p-2">
-                  <Image src="/mpesa.svg" alt="M-Pesa" width={40} height={30} />
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-6 text-sm text-gray-500">
-              <p className="flex items-center justify-center mb-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                Secure Checkout
-              </p>
-            </div>
+          
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="bg-blue-50 p-4 rounded-lg mb-6 max-w-md mx-auto"
+          >
+            <p className="text-sm text-blue-800">
+              A confirmation email has been sent to <span className="font-medium">{formData.email}</span> with your order details.
+            </p>
+          </motion.div>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link 
+              href={`/order/track?ref=${orderReference}`}
+              className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
+            >
+              Track Your Order
+            </Link>
+            <Link 
+              href="/"
+              className="bg-gray-100 text-gray-800 px-6 py-3 rounded-md hover:bg-gray-200 transition-colors"
+            >
+              Continue Shopping
+            </Link>
           </div>
         </motion.div>
       </div>
-    </motion.div>
+    )
+  }
+  
+  return (
+    <div className="max-w-6xl mx-auto py-8 px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="bg-white rounded-lg shadow-md p-8"
+      >
+        <div className="flex items-center mb-6">
+          <Link href="/cart" className="text-blue-600 hover:text-blue-800 flex items-center">
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            Back to Cart
+          </Link>
+        </div>
+        
+        <h1 className="text-2xl font-bold mb-2">Payment Information</h1>
+        <p className="text-gray-600 mb-6">Please enter your payment information below.</p>
+        
+        {/* Order Summary */}
+        <div className="bg-gray-50 p-4 rounded-lg mb-6">
+          <h2 className="text-lg font-semibold mb-3">Order Summary</h2>
+          <div className="max-h-60 overflow-y-auto mb-4">
+            {items.map((item, index) => (
+              <div key={index} className="flex items-center py-2 border-b border-gray-200 last:border-0">
+                <div className="h-12 w-12 flex-shrink-0 mr-3 bg-gray-100 rounded-md overflow-hidden">
+                  {item.image && (
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      width={48}
+                      height={48}
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                </div>
+                <div className="flex-grow">
+                  <p className="text-sm font-medium">{item.name}</p>
+                  <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                </div>
+                <div className="text-sm font-medium">
+                  {formatKesPrice(item.price * item.quantity)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Subtotal</span>
+              <span>{formatKesPrice(orderSummary.subtotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Shipping</span>
+              <span>{formatKesPrice(orderSummary.shipping)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Tax (8%)</span>
+              <span>{formatKesPrice(orderSummary.tax)}</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold">
+              <span>Total</span>
+              <span>{formatKesPrice(orderSummary.total)}</span>
+            </div>
+          </div>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1">Full Name</label>
+              <input 
+                type="text" 
+                name="fullName" 
+                value={formData.fullName} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.fullName && <p className="text-red-500 text-sm">{errors.fullName}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1">Email</label>
+              <input 
+                type="email" 
+                name="email" 
+                value={formData.email} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1">Phone</label>
+              <input 
+                type="tel" 
+                name="phone" 
+                value={formData.phone} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1">Address</label>
+              <input 
+                type="text" 
+                name="address" 
+                value={formData.address} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.address && <p className="text-red-500 text-sm">{errors.address}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1">City</label>
+              <input 
+                type="text" 
+                name="city" 
+                value={formData.city} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.city && <p className="text-red-500 text-sm">{errors.city}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1">Country</label>
+              <input 
+                type="text" 
+                name="country" 
+                value={formData.country} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.country && <p className="text-red-500 text-sm">{errors.country}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1">Postal Code</label>
+              <input 
+                type="text" 
+                name="postalCode" 
+                value={formData.postalCode} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.postalCode && <p className="text-red-500 text-sm">{errors.postalCode}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1">Payment Method</label>
+              <div className="flex gap-4">
+                <button 
+                  className={`p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 ${paymentMethod === "card" ? "bg-blue-600 text-white" : ""}`}
+                  onClick={() => setPaymentMethod("card")}
+                >
+                  <Check className="w-5 h-5" />
+                  Credit Card
+                </button>
+                <button 
+                  className={`p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 ${paymentMethod === "mpesa" ? "bg-blue-600 text-white" : ""}`}
+                  onClick={() => setPaymentMethod("mpesa")}
+                >
+                  <Check className="w-5 h-5" />
+                  M-Pesa
+                </button>
+              </div>
+            </div>
+          </div>
+          {paymentMethod === "card" ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1">Card Number</label>
+                <input 
+                  type="text" 
+                  name="cardNumber" 
+                  value={formData.cardNumber} 
+                  onChange={handleInputChange} 
+                  className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+                {errors.cardNumber && <p className="text-red-500 text-sm">{errors.cardNumber}</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1">Expiry Date</label>
+                <input 
+                  type="text" 
+                  name="expiryDate" 
+                  value={formData.expiryDate} 
+                  onChange={handleInputChange} 
+                  className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+                {errors.expiryDate && <p className="text-red-500 text-sm">{errors.expiryDate}</p>}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-sm font-medium mb-1">M-Pesa Phone Number</label>
+              <input 
+                type="tel" 
+                name="mpesaPhone" 
+                value={formData.mpesaPhone} 
+                onChange={handleInputChange} 
+                className="w-full p-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {errors.mpesaPhone && <p className="text-red-500 text-sm">{errors.mpesaPhone}</p>}
+            </div>
+          )}
+          <button 
+            type="submit" 
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Processing..." : "Pay Now"}
+          </button>
+        </form>
+      </motion.div>
+    </div>
   )
 }

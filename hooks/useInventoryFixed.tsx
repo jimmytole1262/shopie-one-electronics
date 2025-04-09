@@ -2,6 +2,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { toast } from 'sonner';
+import { supabase } from "@/lib/supabase";
 
 // Define the product inventory type
 export type ProductInventory = {
@@ -53,16 +54,15 @@ export function InventoryProvider({ children }: InventoryProviderProps) {
   // Refresh inventory from API
   const refreshInventory = async () => {
     try {
-      const response = await fetch('/api/products');
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const products = await response.json();
+      const { data: products, error } = await supabase
+        .from('products')
+        .select('id, stock');
+
+      if (error) throw error;
+      if (!products) throw new Error('No products found');
       
       // Convert products to inventory format
-      const inventoryData: ProductInventory[] = products.map((product: any) => ({
+      const inventoryData: ProductInventory[] = products.map((product) => ({
         id: parseInt(product.id),
         stock: product.stock !== undefined ? product.stock : 10 // Default to 10 if stock is undefined
       }));
@@ -137,22 +137,17 @@ export function InventoryProvider({ children }: InventoryProviderProps) {
     const newStock = currentStock - quantity;
     
     try {
-      // Update stock in the database via API
-      const response = await fetch(`/api/products/${productId}/stock`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ stock: newStock }),
-      });
+      // Update stock in Supabase
+      const { error } = await supabase
+        .from('products')
+        .update({ stock: newStock })
+        .eq('id', productId);
       
-      if (!response.ok) {
-        // If API fails, still update local inventory but log the error
-        console.error(`API error: ${response.status} ${response.statusText}`);
+      if (error) {
+        throw error;
       }
       
-      // Update local inventory state regardless of API success
-      // This ensures the UI reflects the change even if the API call fails
+      // Update local inventory state
       const updatedInventory = [...inventory];
       updatedInventory[currentProductIndex] = {
         ...updatedInventory[currentProductIndex],
@@ -178,7 +173,6 @@ export function InventoryProvider({ children }: InventoryProviderProps) {
       console.error("Failed to update stock in database:", error);
       
       // Even if the API call fails, we'll still update the local inventory
-      // This ensures the UI doesn't show products as out of stock incorrectly
       const updatedInventory = [...inventory];
       updatedInventory[currentProductIndex] = {
         ...updatedInventory[currentProductIndex],

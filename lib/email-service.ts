@@ -15,6 +15,8 @@ export interface OrderDetails {
   status: 'received' | 'processing' | 'shipped' | 'delivered';
   trackingNumber?: string;
   shippingAddress?: string;
+  paymentMethod?: 'card' | 'mpesa';
+  transactionId?: string;
 }
 
 // Store order details and simulate email sending
@@ -32,15 +34,45 @@ export const sendOrderConfirmationEmail = async (orderDetails: OrderDetails): Pr
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    return response
+    // Store order in localStorage after successful API call
+    const responseData = await response.json();
+    
+    // Update order with tracking number from API
+    const updatedOrder = {
+      ...orderDetails,
+      trackingNumber: responseData.trackingNumber
+    };
+    
+    // Save to localStorage
+    saveOrderToLocalStorage(updatedOrder);
+
+    return new Response(JSON.stringify(responseData), {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
     console.error('Error sending email:', error)
     throw error
   }
 };
 
+// Save order to localStorage
+export const saveOrderToLocalStorage = (orderDetails: OrderDetails): void => {
+  if (typeof window !== 'undefined') {
+    // Get existing orders
+    const existingOrders = JSON.parse(localStorage.getItem('shopie-one-orders') || '[]');
+    
+    // Add new order
+    const updatedOrders = [...existingOrders, orderDetails];
+    
+    // Save back to localStorage
+    localStorage.setItem('shopie-one-orders', JSON.stringify(updatedOrders));
+  }
+};
+
 // Get order details by order reference
 export const getOrderByReference = (orderReference: string): OrderDetails | null => {
+  if (typeof window === 'undefined') return null;
+  
   const orders = JSON.parse(localStorage.getItem('shopie-one-orders') || '[]');
   const order = orders.find((o: OrderDetails) => o.orderReference === orderReference);
   return order || null;
@@ -48,6 +80,8 @@ export const getOrderByReference = (orderReference: string): OrderDetails | null
 
 // Get all orders for a specific email
 export const getOrdersByEmail = (email: string): OrderDetails[] => {
+  if (typeof window === 'undefined') return [];
+  
   const orders = JSON.parse(localStorage.getItem('shopie-one-orders') || '[]');
   return orders.filter((o: OrderDetails) => o.customerEmail === email);
 };
@@ -58,6 +92,8 @@ export const updateOrderStatus = (
   status: 'received' | 'processing' | 'shipped' | 'delivered',
   trackingNumber?: string
 ): boolean => {
+  if (typeof window === 'undefined') return false;
+  
   const orders = JSON.parse(localStorage.getItem('shopie-one-orders') || '[]');
   const orderIndex = orders.findIndex((o: OrderDetails) => o.orderReference === orderReference);
   

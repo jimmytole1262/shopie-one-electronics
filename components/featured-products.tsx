@@ -3,6 +3,7 @@
 import ProductCard from "@/components/product-card"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
 
 interface Product {
   id: number

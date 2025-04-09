@@ -12,3 +12,6 @@ ALTER TABLE products ADD is_new BOOLEAN DEFAULT false;
 
 -- Add is_popular column
 ALTER TABLE products ADD is_popular BOOLEAN DEFAULT false;
+
+-- Add featured column
+ALTER TABLE products ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false;
