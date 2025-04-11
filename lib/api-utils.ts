@@ -27,30 +27,49 @@ export async function fetchWithRetry(
 }
 
 export async function handleApiResponse(response: Response) {
-  // Check if response is HTML
-  const contentType = response.headers.get('content-type');
-  if (contentType?.includes('text/html')) {
-    const text = await response.text();
-    if (text.startsWith('<!DOCTYPE')) {
-      throw new Error('Received HTML instead of JSON response');
-    }
-  }
-
-  // Parse JSON if available
-  if (contentType?.includes('application/json')) {
-    const data = await response.json();
+  try {
+    // Check if response is HTML
+    const contentType = response.headers.get('content-type');
     
-    if (!response.ok) {
-      throw new Error(
-        data.message || 
-        `API request failed with status ${response.status}`
-      );
+    // First try to parse as JSON regardless of content type
+    try {
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(
+          data.message || 
+          `API request failed with status ${response.status}`
+        );
+      }
+      
+      return data;
+    } catch (jsonError) {
+      // If JSON parsing fails, check if it's HTML
+      if (contentType?.includes('text/html')) {
+        // If it's HTML, try to extract any error message or just use a generic message
+        const text = await response.text();
+        
+        // Check if it's a server error page
+        if (text.includes('Internal Server Error') || text.includes('Error 500')) {
+          throw new Error('Server error occurred. Please try again later.');
+        }
+        
+        // Check if it's a not found page
+        if (text.includes('404') || text.includes('Not Found')) {
+          throw new Error('Resource not found. Please check the URL and try again.');
+        }
+        
+        // Generic HTML response error
+        throw new Error('Received HTML instead of JSON response. The API endpoint may be misconfigured.');
+      }
+      
+      // If not HTML or couldn't parse as JSON, throw original error
+      throw new Error(`Failed to parse response: ${jsonError.message}`);
     }
-    
-    return data;
+  } catch (error) {
+    // Rethrow any errors
+    throw error;
   }
-
-  throw new Error('Unsupported response content type');
 }
 
 export function showApiError(error: unknown) {

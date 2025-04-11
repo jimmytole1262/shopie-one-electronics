@@ -7,7 +7,12 @@ export function Toaster() {
   const [isMounted, setIsMounted] = useState(false)
 
   useEffect(() => {
-    setIsMounted(true)
+    // Use requestAnimationFrame to ensure we're not updating state during render
+    const frame = requestAnimationFrame(() => {
+      setIsMounted(true)
+    })
+    
+    return () => cancelAnimationFrame(frame)
   }, [])
 
   if (!isMounted) {

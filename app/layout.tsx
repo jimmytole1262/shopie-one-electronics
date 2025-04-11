@@ -3,11 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Inter } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
-import { CartProvider } from "@/hooks/useCart";
 import { InventoryProvider } from "@/hooks/useInventoryFixed";
 import Link from 'next/link';
 import { ShoppingCart } from 'lucide-react';
-import { Toaster } from 'sonner';
 import "./globals.css"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
@@ -15,21 +13,6 @@ import { Providers } from "./providers"
 import ErrorSuppressor from "@/components/error-suppressor"
 
 const inter = Inter({ subsets: ["latin"] })
-
-// Separate Toaster component to avoid setState during render issues
-function ToasterProvider() {
-  const [isMounted, setIsMounted] = useState(false);
-  
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return null;
-  }
-  
-  return <Toaster position="top-center" richColors closeButton />;
-}
 
 export default function RootLayout({
   children,
@@ -43,7 +26,10 @@ export default function RootLayout({
   const ADMIN_EMAIL = 'jimmytole1262@gmail.com';
 
   useEffect(() => {
-    setIsMounted(true);
+    // Use requestAnimationFrame to avoid React setState during render issues
+    const frame = requestAnimationFrame(() => {
+      setIsMounted(true);
+    });
     
     const checkAdminStatus = async () => {
       try {
@@ -67,6 +53,8 @@ export default function RootLayout({
     };
 
     checkAdminStatus();
+    
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   return (
@@ -74,27 +62,24 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning={true}>
         <ClerkProvider>
           <Providers>
-            <CartProvider>
-              <InventoryProvider>
-                <ToasterProvider />
-                <ErrorSuppressor />
-                <div className="flex min-h-screen flex-col" suppressHydrationWarning={true}>
-                  <Header>
-                    {isMounted && isAdmin && (
-                      <Link
-                        href="/seller-dashboard"
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-orange-500 text-orange-500 hover:bg-orange-50 transition-colors"
-                      >
-                        <ShoppingCart className="h-4 w-4" />
-                        Seller Dashboard
-                      </Link>
-                    )}
-                  </Header>
-                  <main className="flex-1">{children}</main>
-                  <Footer />
-                </div>
-              </InventoryProvider>
-            </CartProvider>
+            <InventoryProvider>
+              <ErrorSuppressor />
+              <div className="flex min-h-screen flex-col" suppressHydrationWarning={true}>
+                <Header>
+                  {isMounted && isAdmin && (
+                    <Link
+                      href="/seller-dashboard"
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-orange-500 text-orange-500 hover:bg-orange-50 transition-colors"
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      Seller Dashboard
+                    </Link>
+                  )}
+                </Header>
+                <main className="flex-1">{children}</main>
+                <Footer />
+              </div>
+            </InventoryProvider>
           </Providers>
         </ClerkProvider>
       </body>
