@@ -195,7 +195,14 @@ export default function ProductsPage() {
     try {
       setLoading(true);
       
-      const response = await fetch('/api/dashboard/products');
+      // Use the correct API endpoint that exists in the project
+      const response = await fetch('/api/products');
+      
+      // Add error handling for non-OK responses before processing
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
       const data = await handleApiResponse(response);
       const validatedProducts = validateProductData(data);
       
@@ -204,6 +211,7 @@ export default function ProductsPage() {
       showApiError(error);
       // Fallback to mock data
       setProducts(mockProducts);
+      console.log("Using mock data due to API error:", error);
     } finally {
       setLoading(false);
     }
@@ -700,6 +708,7 @@ export default function ProductsPage() {
                         alt={product.name}
                         className="h-full w-full object-cover"
                         onError={(e) => {
+                          console.log("Image failed to load:", product.image_url);
                           (e.target as HTMLImageElement).src = "/images/product-placeholder.svg";
                         }}
                       />
@@ -719,13 +728,13 @@ export default function ProductsPage() {
                   </TableCell>
                   <TableCell className="text-center">
                     <span className={`px-2 py-1 rounded-full text-xs ${
-                      product.stock > 10 
+                      parseInt(String(product.stock), 10) > 10 
                         ? 'bg-green-100 text-green-800' 
-                        : product.stock > 0 
+                        : parseInt(String(product.stock), 10) > 0 
                           ? 'bg-yellow-100 text-yellow-800' 
                           : 'bg-red-100 text-red-800'
                     }`}>
-                      {product.stock}
+                      {parseInt(String(product.stock), 10) || 0}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">

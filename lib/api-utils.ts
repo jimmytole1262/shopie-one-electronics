@@ -31,6 +31,9 @@ export async function handleApiResponse(response: Response) {
     // Check if response is HTML
     const contentType = response.headers.get('content-type');
     
+    // Clone the response so we can read it multiple times if needed
+    const responseClone = response.clone();
+    
     // First try to parse as JSON regardless of content type
     try {
       const data = await response.json();
@@ -47,7 +50,7 @@ export async function handleApiResponse(response: Response) {
       // If JSON parsing fails, check if it's HTML
       if (contentType?.includes('text/html')) {
         // If it's HTML, try to extract any error message or just use a generic message
-        const text = await response.text();
+        const text = await responseClone.text();
         
         // Check if it's a server error page
         if (text.includes('Internal Server Error') || text.includes('Error 500')) {
@@ -91,11 +94,14 @@ export function validateProductData(data: unknown): Product[] {
     id: item.id,
     name: item.name || 'Unnamed Product',
     price: typeof item.price === 'number' ? item.price : parseFloat(item.price || '0'),
-    image: item.image_url || '/placeholder-product.png',
+    image_url: item.image_url || '/images/product-placeholder.svg',
     category: item.category || 'Uncategorized',
-    ...(item.featured && { featured: true }),
-    ...(item.isNew && { isNew: true }),
-    ...(item.discount && { discount: item.discount })
+    stock: typeof item.stock === 'number' ? item.stock : parseInt(String(item.stock), 10) || 0,
+    description: item.description || '',
+    is_popular: !!item.is_popular,
+    is_new: !!item.is_new,
+    ...(item.discount && { discount: item.discount }),
+    ...(item.original_price && { original_price: item.original_price }),
   }));
 }
 
