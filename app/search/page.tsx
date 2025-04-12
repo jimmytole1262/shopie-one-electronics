@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Spinner } from "@/components/ui/spinner"
 import ProductCard from "@/components/product-card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { formatKesPrice } from "@/lib/utils"
+import { supabase } from "@/lib/supabase"
 
 // Product type definition
 interface Product {
@@ -20,152 +21,48 @@ interface Product {
   isNew?: boolean
   discount?: number
   isPopular?: boolean
+  stock?: number
 }
 
 export default function SearchPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const query = searchParams?.get("q") || ""
   
   const [searchTerm, setSearchTerm] = useState(query)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Simulated product data with dynamic images using placeholder
-  const allProducts: Product[] = [
-    {
-      id: 1,
-      name: "Wireless Headphones",
-      price: 129.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Audio",
-      isNew: true
-    },
-    {
-      id: 2,
-      name: "Smart Watch Pro",
-      price: 199.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Wearables",
-    },
-    {
-      id: 3,
-      name: "Bluetooth Speaker",
-      price: 79.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Audio",
-      discount: 10
-    },
-    {
-      id: 4,
-      name: "Wireless Earbuds",
-      price: 89.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Audio",
-      isPopular: true
-    },
-    {
-      id: 5,
-      name: "Premium Headphones",
-      price: 249.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Audio",
-    },
-    {
-      id: 6,
-      name: "Wireless Earbuds Pro",
-      price: 149.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Audio",
-      isNew: true
-    },
-    {
-      id: 7,
-      name: "Noise Cancelling Headset",
-      price: 199.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Audio",
-    },
-    {
-      id: 8,
-      name: "Portable Charger",
-      price: 49.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Accessories",
-      discount: 15
-    },
-    {
-      id: 9,
-      name: "Gaming Mouse",
-      price: 89.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Gaming",
-      isPopular: true
-    },
-    {
-      id: 10,
-      name: "Gaming Keyboard",
-      price: 129.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Gaming",
-      isNew: true
-    },
-    {
-      id: 11,
-      name: "Gaming PC",
-      price: 1999.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Gaming",
-      featured: true
-    },
-    {
-      id: 12,
-      name: "Gaming Headset",
-      price: 149.99,
-      image: "/placeholder.svg?height=300&width=300",
-      category: "Gaming",
-      discount: 10
-    },
-  ]
+  // Function to perform the actual search from Supabase
+  const performSearch = async (searchQuery: string) => {
+    if (!searchQuery) {
+      setProducts([])
+      return
+    }
 
-  useEffect(() => {
-    // Simulate API call with a delay
-    setLoading(true)
-    setTimeout(() => {
-      if (query) {
-        // Improved search to handle partial matches and be more forgiving
-        const searchTerms = query.toLowerCase().split(' ')
-        const filtered = allProducts.filter(product => {
-          const productName = product.name.toLowerCase()
-          const productCategory = product.category.toLowerCase()
-          
-          // Check if any search term is included in the product name or category
-          return searchTerms.some(term => 
-            productName.includes(term) || 
-            productCategory.includes(term)
-          )
-        })
-        setProducts(filtered)
-      } else {
-        setProducts([])
+    try {
+      // Split search terms for better matching
+      const searchTerms = searchQuery.toLowerCase().split(' ')
+      
+      // Fetch all products from Supabase
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+      
+      if (error) {
+        console.error('Error fetching products:', error)
+        return
       }
-      setLoading(false)
-    }, 500)
-  }, [query])
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Update URL with search query
-    const url = new URL(window.location.href)
-    url.searchParams.set("q", searchTerm)
-    window.history.pushState({}, "", url.toString())
-    
-    // Filter products with improved search
-    if (searchTerm) {
-      // Split search term into individual words for better matching
-      const searchTerms = searchTerm.toLowerCase().split(' ')
-      const filtered = allProducts.filter(product => {
-        const productName = product.name.toLowerCase()
-        const productCategory = product.category.toLowerCase()
+      
+      if (!data || data.length === 0) {
+        setProducts([])
+        return
+      }
+      
+      // Filter products client-side based on search terms
+      const filtered = data.filter(product => {
+        const productName = product.name?.toLowerCase() || ''
+        const productCategory = product.category?.toLowerCase() || ''
         
         // Check if any search term is included in the product name or category
         return searchTerms.some(term => 
@@ -173,10 +70,52 @@ export default function SearchPage() {
           productCategory.includes(term)
         )
       })
-      setProducts(filtered)
-    } else {
+      
+      // Map to ensure all products have the correct format
+      const formattedProducts = filtered.map(product => ({
+        id: parseInt(product.id),
+        name: product.name || 'Unnamed Product',
+        price: parseFloat(product.price) || 0,
+        image: product.image || '/placeholder.svg?height=300&width=300',
+        category: product.category || 'Uncategorized',
+        featured: product.featured || false,
+        isNew: product.isNew || false,
+        discount: product.discount || 0,
+        isPopular: product.isPopular || false,
+        stock: product.stock || 0
+      }))
+      
+      setProducts(formattedProducts)
+    } catch (error) {
+      console.error('Error in search:', error)
       setProducts([])
     }
+  }
+
+  // Effect to handle URL query parameter changes
+  useEffect(() => {
+    // Update the search term state when the URL query changes
+    setSearchTerm(query)
+    
+    // Fetch products based on search query
+    setLoading(true)
+    const timer = setTimeout(async () => {
+      await performSearch(query)
+      setLoading(false)
+    }, 500)
+    
+    return () => clearTimeout(timer)
+  }, [query])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Update URL with search query and navigate
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("q", searchTerm)
+    
+    // Use router.push to properly update the URL and trigger a navigation
+    router.push(`/search?${params.toString()}`)
   }
 
   const container = {

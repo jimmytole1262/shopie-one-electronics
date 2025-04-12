@@ -148,7 +148,7 @@ export default function PaymentPage() {
       
       return () => clearTimeout(redirectTimer);
     }
-  }, [isMounted, cartItems, router, isSuccess]);
+  }, [isMounted, cartItems, router]);
 
   // Calculate order summary
   const [orderSummary, setOrderSummary] = useState({
@@ -362,13 +362,7 @@ export default function PaymentPage() {
         // Continue with order processing even if email fails
       }
       
-      // Clear cart after successful order
-      clearCart()
-      
-      // Clear checkout data from localStorage
-      localStorage.removeItem('checkout_cart_items')
-      
-      // Set success state
+      // Set success state first before clearing the cart
       setIsSuccess(true)
       
       // Show success toast
@@ -380,6 +374,36 @@ export default function PaymentPage() {
       setIsSubmitting(false)
     }
   }
+
+  useEffect(() => {
+    if (isSuccess) {
+      // Store the current order details for tracking
+      if (typeof window !== 'undefined') {
+        // Flag to indicate we have a successful order
+        localStorage.setItem('has_successful_order', 'true');
+      }
+      
+      // Add event listener for navigation
+      const handleBeforeUnload = () => {
+        // Clear cart when navigating away from this page
+        clearCart();
+        localStorage.removeItem('checkout_cart_items');
+        localStorage.removeItem('has_successful_order');
+      };
+      
+      // Add event listener for navigation
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      // Clean up event listener
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        // Also clear cart when component unmounts (navigating away)
+        clearCart();
+        localStorage.removeItem('checkout_cart_items');
+        localStorage.removeItem('has_successful_order');
+      };
+    }
+  }, [isSuccess, clearCart]);
 
   // Prevent hydration errors by returning a skeleton during SSR
   if (!isMounted) {
@@ -453,12 +477,18 @@ export default function PaymentPage() {
             </div>
           </div>
           
-          <div className="text-center">
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link 
               href="/"
               className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               Continue Shopping
+            </Link>
+            <Link 
+              href={`/tracking?number=${trackingNumber}`}
+              className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+            >
+              Track Your Order
             </Link>
           </div>
         </div>

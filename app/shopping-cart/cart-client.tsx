@@ -114,18 +114,37 @@ export default function CartClient() {
     }
 
     // If all inventory updates are successful, proceed to checkout
-    toast.success("Order placed successfully! Redirecting to payment...", {
+    toast.success("Order processed successfully! Redirecting to payment...", {
       id: "checkout-success",
       duration: 2000,
     });
     
-    // Clear the cart after successful checkout
-    clearCart();
-
-    // Redirect to payment page
-    setTimeout(() => {
+    try {
+      // Store cart items in localStorage to preserve them during navigation
+      if (typeof window !== 'undefined') {
+        // Make sure we're storing valid JSON by creating a clean copy of the items
+        const cleanItems = items.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+          category: item.category || "Unknown"
+        }));
+        
+        localStorage.setItem('checkout_cart_items', JSON.stringify(cleanItems));
+      }
+      
+      // Redirect to payment page
       window.location.href = "/payment";
-    }, 2000);
+      
+      // Only clear the cart after successful navigation
+      // This is moved to the payment page after it confirms it has the cart data
+      // clearCart(); - Removed from here
+    } catch (error) {
+      console.error("Error during checkout:", error);
+      toast.error("Something went wrong. Please try again.");
+    }
   };
 
   // Handle quantity increase with inventory check

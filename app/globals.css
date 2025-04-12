@@ -1,3 +1,9 @@
+/* 
+ * This file uses Tailwind CSS directives (@tailwind, @apply) which may show as warnings
+ * in some CSS language servers. These warnings can be safely ignored as they are
+ * processed correctly by the Tailwind CSS processor in the Next.js build system.
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -58,3 +64,65 @@
   }
 }
 
+/* Dark mode specific styles */
+.dark .main-site-header {
+  @apply border-slate-800 bg-gray-900;
+}
+
+.dark input, .dark select, .dark textarea {
+  @apply bg-gray-800 border-gray-700 text-white;
+}
+
+.dark .bg-white {
+  @apply bg-gray-800;
+}
+
+.dark .text-gray-700 {
+  @apply text-gray-300;
+}
+
+.dark .text-gray-600, .dark .text-gray-500 {
+  @apply text-gray-400;
+}
+
+.dark .border-gray-300 {
+  @apply border-gray-700;
+}
+
+.dark .hover\:bg-slate-100:hover {
+  @apply hover:bg-slate-800;
+}
+
+.dark .hover\:bg-gray-50:hover {
+  @apply hover:bg-gray-800;
+}
+
+.dark .shadow-md {
+  @apply shadow-xl shadow-gray-900;
+}
+
+/* Preserve orange color in dark mode */
+.dark .text-orange-500 {
+  color: rgb(249 115 22); /* Same as text-orange-500 */
+}
+
+.dark .hover\:text-orange-600:hover {
+  color: rgb(234 88 12); /* Same as text-orange-600 */
+}
+
+.dark .hover\:text-orange-400:hover {
+  color: rgb(251 146 60); /* Same as text-orange-400 */
+}
+
+.dark .bg-orange-500 {
+  background-color: rgb(249 115 22); /* Same as bg-orange-500 */
+}
+
+.dark .hover\:bg-orange-600:hover {
+  background-color: rgb(234 88 12); /* Same as bg-orange-600 */
+}
+
+/* Ensure toast notifications are visible in dark mode */
+.dark .toast-custom-class {
+  @apply bg-gray-800 text-white border-gray-700;
+}

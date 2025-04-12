@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs"
 import { motion } from "framer-motion"
 import { useWishlist } from "@/hooks/useWishlist"
 import { useState, useEffect } from "react"
+import ThemeToggle from "./theme-toggle"
 
 interface HeaderProps {
   children?: React.ReactNode;
@@ -81,6 +82,8 @@ export default function Header({ children }: HeaderProps) {
             <Search className="h-5 w-5 text-gray-700 hover:text-orange-500 transition-colors duration-300" />
             <span className="sr-only">Search</span>
           </button>
+          
+          <ThemeToggle />
           
           <Link href="/order/track">
             <motion.div 
